@@ -165,7 +165,7 @@ class RSocketRequester implements RSocket {
   }
 
   private Mono<Void> handleFireAndForget(Payload payload) {
-    Throwable err = checkAvailable();
+    final Throwable err = checkAvailable();
     if (err != null) {
       payload.release();
       return Mono.error(err);
@@ -189,7 +189,7 @@ class RSocketRequester implements RSocket {
                 // todo check rsocket is teminated
                 if (!receiver.isDisposed()) {
                   final int streamId = streamIdSupplier.nextStreamId(receivers);
-                  ByteBuf requestFrame =
+                  final ByteBuf requestFrame =
                       RequestFireAndForgetFrameFlyweight.encode(
                           allocator,
                           streamId,
@@ -207,43 +207,56 @@ class RSocketRequester implements RSocket {
   }
 
   private Mono<Payload> handleRequestResponse(final Payload payload) {
-    Throwable err = checkAvailable();
+    final Throwable err = checkAvailable();
     if (err != null) {
       payload.release();
       return Mono.error(err);
     }
-
-    int streamId = streamIdSupplier.nextStreamId(receivers);
     final UnboundedProcessor<ByteBuf> sendProcessor = this.sendProcessor;
 
-    UnicastMonoProcessor<Payload> receiver = UnicastMonoProcessor.create();
-    receivers.put(streamId, receiver);
-
+    final StreamId deferredStreamId = new StreamId();
+    final UnicastMonoProcessor<Payload> receiver = UnicastMonoProcessor.create();
     return receiver
         .doOnSubscribe(
-            new OnceConsumer<Subscription>() {
-              @Override
-              public void acceptOnce(@Nonnull Subscription subscription) {
-                final ByteBuf requestFrame =
-                    RequestResponseFrameFlyweight.encode(
-                        allocator,
-                        streamId,
-                        false,
-                        payload.sliceMetadata().retain(),
-                        payload.sliceData().retain());
-                payload.release();
+            new Consumer<Subscription>() {
 
-                sendProcessor.onNext(requestFrame);
+              boolean isRequestSent;
+
+              @Override
+              public void accept(@Nonnull Subscription subscription) {
+                if (isRequestSent) {
+                  receiver.onError(
+                      new IllegalStateException(
+                          new IllegalStateException("only a single Subscriber is allowed")));
+                }
+                isRequestSent = true;
+                // todo check rsocket terminated
+                if (!receiver.isDisposed()) {
+                  int streamId = deferredStreamId.set(streamIdSupplier.nextStreamId(receivers));
+                  receivers.put(streamId, receiver);
+
+                  final ByteBuf requestFrame =
+                      RequestResponseFrameFlyweight.encode(
+                          allocator,
+                          streamId,
+                          false,
+                          payload.sliceMetadata().retain(),
+                          payload.sliceData().retain());
+                  payload.release();
+
+                  sendProcessor.onNext(requestFrame);
+                }
               }
             })
-        .doOnError(t -> sendProcessor.onNext(ErrorFrameFlyweight.encode(allocator, streamId, t)))
         .doFinally(
             s -> {
+              int streamId = deferredStreamId.get();
               if (s == SignalType.CANCEL) {
                 sendProcessor.onNext(CancelFrameFlyweight.encode(allocator, streamId));
               }
               removeStreamReceiver(streamId);
-            });
+            })
+        .subscribeOn(transportScheduler);
   }
 
   private Flux<Payload> handleRequestStream(final Payload payload) {
@@ -618,5 +631,18 @@ class RSocketRequester implements RSocket {
 
   private void handleSendProcessorError(Throwable t) {
     connection.dispose();
+  }
+
+  private static class StreamId {
+    private volatile int streamId = -1;
+
+    public int set(int streamId) {
+      this.streamId = streamId;
+      return streamId;
+    }
+
+    public int get() {
+      return streamId;
+    }
   }
 }
