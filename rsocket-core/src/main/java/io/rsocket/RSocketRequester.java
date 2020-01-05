@@ -48,6 +48,7 @@ import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 import reactor.core.publisher.*;
+import reactor.core.scheduler.Scheduler;
 import reactor.util.concurrent.Queues;
 
 /**
@@ -73,6 +74,7 @@ class RSocketRequester implements RSocket {
   private final RequesterLeaseHandler leaseHandler;
   private final ByteBufAllocator allocator;
   private final KeepAliveFramesAcceptor keepAliveFramesAcceptor;
+  private final Scheduler transportScheduler;
   private volatile Throwable terminationError;
 
   RSocketRequester(
@@ -93,6 +95,7 @@ class RSocketRequester implements RSocket {
     this.leaseHandler = leaseHandler;
     this.senders = new SynchronizedIntObjectHashMap<>();
     this.receivers = new SynchronizedIntObjectHashMap<>();
+    this.transportScheduler = connection.scheduler();
 
     // DO NOT Change the order here. The Send processor must be subscribed to before receiving
     this.sendProcessor = new UnboundedProcessor<>();
@@ -168,25 +171,39 @@ class RSocketRequester implements RSocket {
       return Mono.error(err);
     }
 
-    final int streamId = streamIdSupplier.nextStreamId(receivers);
-
-    return emptyUnicastMono()
+    MonoProcessor<Void> receiver = MonoProcessor.create();
+    return receiver
         .doOnSubscribe(
-            new OnceConsumer<Subscription>() {
-              @Override
-              public void acceptOnce(@Nonnull Subscription subscription) {
-                ByteBuf requestFrame =
-                    RequestFireAndForgetFrameFlyweight.encode(
-                        allocator,
-                        streamId,
-                        false,
-                        payload.hasMetadata() ? payload.sliceMetadata().retain() : null,
-                        payload.sliceData().retain());
-                payload.release();
+            new Consumer<Subscription>() {
 
-                sendProcessor.onNext(requestFrame);
+              boolean isRequestSent;
+
+              @Override
+              public void accept(Subscription s) {
+                if (isRequestSent) {
+                  receiver.onError(
+                      new IllegalStateException(
+                          new IllegalStateException("only a single Subscriber is allowed")));
+                }
+                isRequestSent = true;
+                // todo check rsocket is teminated
+                if (!receiver.isDisposed()) {
+                  final int streamId = streamIdSupplier.nextStreamId(receivers);
+                  ByteBuf requestFrame =
+                      RequestFireAndForgetFrameFlyweight.encode(
+                          allocator,
+                          streamId,
+                          false,
+                          payload.hasMetadata() ? payload.sliceMetadata().retain() : null,
+                          payload.sliceData().retain());
+                  payload.release();
+
+                  sendProcessor.onNext(requestFrame);
+                  receiver.onComplete();
+                }
               }
-            });
+            })
+        .subscribeOn(transportScheduler);
   }
 
   private Mono<Payload> handleRequestResponse(final Payload payload) {
