@@ -267,12 +267,6 @@ class RSocketRequester implements RSocket {
                 }
               }
             })
-        .doOnError(
-            t -> {
-              if (contains(streamId) && !receiver.isDisposed()) {
-                sendProcessor.onNext(ErrorFrameFlyweight.encode(allocator, streamId, t));
-              }
-            })
         .doOnCancel(
             () -> {
               if (contains(streamId) && !receiver.isDisposed()) {
@@ -357,7 +351,8 @@ class RSocketRequester implements RSocket {
 
                             @Override
                             protected void hookOnError(Throwable t) {
-                              errorConsumer.accept(t);
+                              sendProcessor.onNext(
+                                  ErrorFrameFlyweight.encode(allocator, streamId, t));
                               receiver.dispose();
                             }
                           });
@@ -366,12 +361,6 @@ class RSocketRequester implements RSocket {
                     sendProcessor.onNext(RequestNFrameFlyweight.encode(allocator, streamId, n));
                   }
                 }
-              }
-            })
-        .doOnError(
-            t -> {
-              if (contains(streamId) && !receiver.isDisposed()) {
-                sendProcessor.onNext(ErrorFrameFlyweight.encode(allocator, streamId, t));
               }
             })
         .doOnCancel(
