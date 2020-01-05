@@ -32,6 +32,7 @@ import org.slf4j.LoggerFactory;
 import reactor.core.Disposable;
 import reactor.core.Disposables;
 import reactor.core.publisher.*;
+import reactor.core.scheduler.Scheduler;
 import reactor.util.concurrent.Queues;
 
 public class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
@@ -209,6 +210,11 @@ public class ResumableDuplexConnection implements DuplexConnection, ResumeStateH
   @Override
   public double availability() {
     return curConnection.availability();
+  }
+
+  @Override
+  public Scheduler scheduler() {
+    return curConnection.scheduler();
   }
 
   @Override

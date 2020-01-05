@@ -21,6 +21,7 @@ import io.rsocket.DuplexConnection;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Scheduler;
 
 public class DuplexConnectionProxy implements DuplexConnection {
   private final DuplexConnection connection;
@@ -42,6 +43,11 @@ public class DuplexConnectionProxy implements DuplexConnection {
   @Override
   public double availability() {
     return connection.availability();
+  }
+
+  @Override
+  public Scheduler scheduler() {
+    return connection.scheduler();
   }
 
   @Override

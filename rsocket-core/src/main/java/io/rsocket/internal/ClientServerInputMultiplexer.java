@@ -29,6 +29,7 @@ import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
+import reactor.core.scheduler.Scheduler;
 
 /**
  * {@link DuplexConnection#receive()} is a single stream on which the following type of frames
@@ -218,6 +219,11 @@ public class ClientServerInputMultiplexer implements Closeable {
     @Override
     public double availability() {
       return source.availability();
+    }
+
+    @Override
+    public Scheduler scheduler() {
+      return source.scheduler();
     }
   }
 }

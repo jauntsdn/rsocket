@@ -24,6 +24,8 @@ import org.reactivestreams.Subscriber;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
+import reactor.core.scheduler.Scheduler;
+import reactor.core.scheduler.Schedulers;
 
 /** An implementation of {@link DuplexConnection} that connects inside the same JVM. */
 final class LocalDuplexConnection implements DuplexConnection {
@@ -31,6 +33,7 @@ final class LocalDuplexConnection implements DuplexConnection {
   private final Flux<ByteBuf> in;
 
   private final MonoProcessor<Void> onClose;
+  private final Scheduler scheduler;
 
   private final Subscriber<ByteBuf> out;
 
@@ -43,9 +46,15 @@ final class LocalDuplexConnection implements DuplexConnection {
    * @throws NullPointerException if {@code in}, {@code out}, or {@code onClose} are {@code null}
    */
   LocalDuplexConnection(Flux<ByteBuf> in, Subscriber<ByteBuf> out, MonoProcessor<Void> onClose) {
+    this(in, out, onClose, ConnectionScheduler.DEFAULT);
+  }
+
+  LocalDuplexConnection(
+      Flux<ByteBuf> in, Subscriber<ByteBuf> out, MonoProcessor<Void> onClose, Scheduler scheduler) {
     this.in = Objects.requireNonNull(in, "in must not be null");
     this.out = Objects.requireNonNull(out, "out must not be null");
     this.onClose = Objects.requireNonNull(onClose, "onClose must not be null");
+    this.scheduler = Objects.requireNonNull(scheduler, "scheduler must not be null");
   }
 
   @Override
@@ -70,6 +79,11 @@ final class LocalDuplexConnection implements DuplexConnection {
   }
 
   @Override
+  public Scheduler scheduler() {
+    return scheduler;
+  }
+
+  @Override
   public Mono<Void> send(Publisher<ByteBuf> frames) {
     Objects.requireNonNull(frames, "frames must not be null");
 
@@ -81,5 +95,9 @@ final class LocalDuplexConnection implements DuplexConnection {
     Objects.requireNonNull(frame, "frame must not be null");
     out.onNext(frame);
     return Mono.empty();
+  }
+
+  private static class ConnectionScheduler {
+    static final Scheduler DEFAULT = Schedulers.immediate();
   }
 }

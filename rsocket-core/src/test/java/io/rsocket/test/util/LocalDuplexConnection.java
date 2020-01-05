@@ -23,19 +23,31 @@ import reactor.core.publisher.DirectProcessor;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
+import reactor.core.scheduler.Scheduler;
+import reactor.core.scheduler.Schedulers;
 
 public class LocalDuplexConnection implements DuplexConnection {
   private final DirectProcessor<ByteBuf> send;
   private final DirectProcessor<ByteBuf> receive;
+  private final Scheduler scheduler;
   private final MonoProcessor<Void> onClose;
   private final String name;
 
   public LocalDuplexConnection(
       String name, DirectProcessor<ByteBuf> send, DirectProcessor<ByteBuf> receive) {
+    this(name, send, receive, ConnectionScheduler.DEFAULT);
+  }
+
+  public LocalDuplexConnection(
+      String name,
+      DirectProcessor<ByteBuf> send,
+      DirectProcessor<ByteBuf> receive,
+      Scheduler scheduler) {
     this.name = name;
     this.send = send;
     this.receive = receive;
     onClose = MonoProcessor.create();
+    this.scheduler = scheduler;
   }
 
   @Override
@@ -53,6 +65,11 @@ public class LocalDuplexConnection implements DuplexConnection {
   }
 
   @Override
+  public Scheduler scheduler() {
+    return scheduler;
+  }
+
+  @Override
   public void dispose() {
     onClose.onComplete();
   }
@@ -65,5 +82,9 @@ public class LocalDuplexConnection implements DuplexConnection {
   @Override
   public Mono<Void> onClose() {
     return onClose;
+  }
+
+  private static class ConnectionScheduler {
+    static final Scheduler DEFAULT = Schedulers.immediate();
   }
 }

@@ -32,6 +32,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Scheduler;
 
 /**
  * A {@link DuplexConnection} implementation that fragments and reassembles {@link ByteBuf}s.
@@ -155,6 +156,11 @@ public final class FragmentationDuplexConnection implements DuplexConnection {
               ByteBuf decode = decode(byteBuf);
               frameReassembler.reassembleFrame(decode, sink);
             });
+  }
+
+  @Override
+  public Scheduler scheduler() {
+    return delegate.scheduler();
   }
 
   @Override

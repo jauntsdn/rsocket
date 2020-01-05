@@ -20,6 +20,7 @@ import io.netty.buffer.ByteBuf;
 import io.rsocket.DuplexConnection;
 import java.util.Collection;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
@@ -30,6 +31,8 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.FluxSink;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
+import reactor.core.scheduler.Scheduler;
+import reactor.core.scheduler.Schedulers;
 
 /**
  * An implementation of {@link DuplexConnection} that provides functionality to modify the behavior
@@ -89,6 +92,11 @@ public class TestDuplexConnection implements DuplexConnection {
   }
 
   @Override
+  public Scheduler scheduler() {
+    return ConnectionScheduler.DEFAULT;
+  }
+
+  @Override
   public void dispose() {
     onClose.onComplete();
   }
@@ -120,8 +128,19 @@ public class TestDuplexConnection implements DuplexConnection {
   }
 
   public void addToReceivedBuffer(ByteBuf... received) {
-    for (ByteBuf frame : received) {
-      this.receivedSink.next(frame);
+    CountDownLatch latch = new CountDownLatch(1);
+    scheduler()
+        .schedule(
+            () -> {
+              for (ByteBuf frame : received) {
+                this.receivedSink.next(frame);
+              }
+              latch.countDown();
+            });
+    try {
+      latch.await();
+    } catch (InterruptedException e) {
+      throw new RuntimeException(e);
     }
   }
 
@@ -136,5 +155,9 @@ public class TestDuplexConnection implements DuplexConnection {
 
   public Collection<Subscriber<ByteBuf>> getSendSubscribers() {
     return sendSubscribers;
+  }
+
+  private static class ConnectionScheduler {
+    static final Scheduler DEFAULT = Schedulers.immediate();
   }
 }

@@ -23,6 +23,8 @@ import java.util.Objects;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Scheduler;
+import reactor.core.scheduler.Schedulers;
 import reactor.netty.Connection;
 
 /**
@@ -35,6 +37,7 @@ import reactor.netty.Connection;
 public final class WebsocketDuplexConnection extends BaseDuplexConnection {
 
   private final Connection connection;
+  private final Scheduler scheduler;
 
   /**
    * Creates a new instance
@@ -43,7 +46,7 @@ public final class WebsocketDuplexConnection extends BaseDuplexConnection {
    */
   public WebsocketDuplexConnection(Connection connection) {
     this.connection = Objects.requireNonNull(connection, "connection must not be null");
-
+    this.scheduler = Schedulers.fromExecutor(connection.channel().eventLoop());
     connection
         .channel()
         .closeFuture()
@@ -63,6 +66,11 @@ public final class WebsocketDuplexConnection extends BaseDuplexConnection {
   @Override
   public Flux<ByteBuf> receive() {
     return connection.inbound().receive().map(ByteBuf::retain);
+  }
+
+  @Override
+  public Scheduler scheduler() {
+    return scheduler;
   }
 
   @Override
