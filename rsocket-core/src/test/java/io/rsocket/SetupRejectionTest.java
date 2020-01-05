@@ -45,7 +45,6 @@ public class SetupRejectionTest {
     assertThat(acceptorSender.isDisposed()).isTrue();
   }
 
-  @Disabled("Disabled until requester new threading model")
   @Test
   void requesterStreamsTerminatedOnZeroErrorFrame() {
     TestDuplexConnection conn = new TestDuplexConnection();

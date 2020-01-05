@@ -180,7 +180,14 @@ class RSocketRequester implements RSocket {
                   return;
                 }
                 isRequestSent = true;
-                // todo check rsocket is teminated
+
+                Throwable e = terminationError;
+                if (e != null) {
+                  sink.error(e);
+                  payload.release();
+                  return;
+                }
+
                 final int streamId = streamIdSupplier.nextStreamId(receivers);
                 final ByteBuf requestFrame =
                     RequestFireAndForgetFrameFlyweight.encode(
@@ -222,10 +229,19 @@ class RSocketRequester implements RSocket {
                   return;
                 }
                 isRequestSent = true;
-                // todo check rsocket terminated
+
                 if (receiver.isDisposed()) {
+                  payload.release();
                   return;
                 }
+
+                Throwable err = terminationError;
+                if (err != null) {
+                  receiver.onError(err);
+                  payload.release();
+                  return;
+                }
+
                 int streamId = stream.setId(streamIdSupplier.nextStreamId(receivers));
                 receivers.put(streamId, receiver);
 
@@ -271,10 +287,23 @@ class RSocketRequester implements RSocket {
 
               @Override
               public void accept(long requestN) {
-                // todo check rsocket terminated
+
                 if (receiver.isDisposed()) {
+                  if (!isRequestSent) {
+                    payload.release();
+                  }
                   return;
                 }
+
+                Throwable err = terminationError;
+                if (err != null) {
+                  receiver.onError(err);
+                  if (!isRequestSent) {
+                    payload.release();
+                  }
+                  return;
+                }
+
                 if (!isRequestSent) {
                   isRequestSent = true;
 
@@ -334,7 +363,6 @@ class RSocketRequester implements RSocket {
                 if (receiver.isDisposed()) {
                   return;
                 }
-
                 if (!isRequestSent) {
                   isRequestSent = true;
                   request
@@ -361,10 +389,15 @@ class RSocketRequester implements RSocket {
                                 return;
                               }
 
+                              Throwable err = terminationError;
+                              if (err != null) {
+                                receiver.onError(err);
+                                payload.release();
+                                return;
+                              }
+
                               if (!isRequestSent) {
                                 isRequestSent = true;
-
-                                // todo check rsocket terminated
 
                                 int streamId =
                                     stream.setId(streamIdSupplier.nextStreamId(receivers));
@@ -460,6 +493,13 @@ class RSocketRequester implements RSocket {
               return;
             }
             isRequestSent = true;
+
+            Throwable err = terminationError;
+            if (err != null) {
+              payload.release();
+              sink.error(err);
+              return;
+            }
 
             ByteBuf metadataPushFrame =
                 MetadataPushFrameFlyweight.encode(allocator, payload.sliceMetadata().retain());
@@ -611,14 +651,16 @@ class RSocketRequester implements RSocket {
         e = new IllegalStateException("Unknown termination token: " + error);
       }
       if (TERMINATION_ERROR.compareAndSet(this, null, e)) {
-        terminate(e);
+        transportScheduler.schedule(this::terminate);
       }
     }
   }
 
-  private void terminate(Exception e) {
+  private void terminate() {
     connection.dispose();
     leaseHandler.dispose();
+
+    Throwable e = this.terminationError;
 
     synchronized (receivers) {
       receivers
