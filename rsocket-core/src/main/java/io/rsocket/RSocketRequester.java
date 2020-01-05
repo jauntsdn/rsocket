@@ -346,9 +346,9 @@ class RSocketRequester implements RSocket {
 
                             @Override
                             protected void hookOnSubscribe(Subscription subscription) {
-                              subscription.request(1);
-                              stream.setSender(subscription);
                               this.sender = subscription;
+                              stream.setSender(subscription);
+                              subscription.request(1);
                             }
 
                             @Override
