@@ -37,7 +37,6 @@ import java.nio.channels.ClosedChannelException;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
-import java.util.function.Supplier;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import org.reactivestreams.Processor;
@@ -98,7 +97,7 @@ class RSocketRequester implements RSocket {
 
     connection
         .onClose()
-        .doFinally(signalType -> tryTerminateOnConnectionClose())
+        .doFinally(signalType -> tryTerminate(CLOSED_CHANNEL_EXCEPTION))
         .subscribe(null, errorConsumer);
     connection.send(sendProcessor).subscribe(null, this::handleSendProcessorError);
 
@@ -109,7 +108,9 @@ class RSocketRequester implements RSocket {
           new ClientKeepAliveSupport(allocator, keepAliveTickPeriod, keepAliveAckTimeout);
       this.keepAliveFramesAcceptor =
           keepAliveHandler.start(
-              keepAliveSupport, sendProcessor::onNext, this::tryTerminateOnKeepAlive);
+              keepAliveSupport,
+              keepAliveFrame -> sendProcessor.onNext(keepAliveFrame),
+              keepAliveTimeout -> tryTerminate(keepAliveTimeout));
     } else {
       keepAliveFramesAcceptor = null;
     }
@@ -505,7 +506,7 @@ class RSocketRequester implements RSocket {
   private void handleStreamZero(FrameType type, ByteBuf frame) {
     switch (type) {
       case ERROR:
-        tryTerminateOnZeroError(frame);
+        tryTerminate(frame);
         break;
       case LEASE:
         leaseHandler.receive(frame);
@@ -592,24 +593,23 @@ class RSocketRequester implements RSocket {
     // so ignore (cancellation is async so there is a race condition)
   }
 
-  private void tryTerminateOnKeepAlive(KeepAlive keepAlive) {
-    tryTerminate(
-        () ->
-            new ConnectionErrorException(
-                String.format("No keep-alive acks for %d ms", keepAlive.getTimeout().toMillis())));
-  }
-
-  private void tryTerminateOnConnectionClose() {
-    tryTerminate(() -> CLOSED_CHANNEL_EXCEPTION);
-  }
-
-  private void tryTerminateOnZeroError(ByteBuf errorFrame) {
-    tryTerminate(() -> Exceptions.from(errorFrame));
-  }
-
-  private void tryTerminate(Supplier<Exception> errorSupplier) {
+  /*error is (KeepAlive | ClosedChannelException (dispose) | Error frame (0 error)) */
+  private void tryTerminate(Object error) {
     if (terminationError == null) {
-      Exception e = errorSupplier.get();
+      Exception e;
+      if (error instanceof ClosedChannelException) {
+        e = (Exception) error;
+      } else if (error instanceof KeepAlive) {
+        KeepAlive keepAlive = (KeepAlive) error;
+        e =
+            new ConnectionErrorException(
+                String.format("No keep-alive acks for %d ms", keepAlive.getTimeout().toMillis()));
+      } else if (error instanceof ByteBuf) {
+        ByteBuf errorFrame = (ByteBuf) error;
+        e = Exceptions.from(errorFrame);
+      } else {
+        e = new IllegalStateException("Unknown termination token: " + error);
+      }
       if (TERMINATION_ERROR.compareAndSet(this, null, e)) {
         terminate(e);
       }
