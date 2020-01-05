@@ -260,50 +260,65 @@ class RSocketRequester implements RSocket {
   }
 
   private Flux<Payload> handleRequestStream(final Payload payload) {
-    Throwable err = checkAvailable();
+    final Throwable err = checkAvailable();
     if (err != null) {
       payload.release();
       return Flux.error(err);
     }
 
-    int streamId = streamIdSupplier.nextStreamId(receivers);
-
     final UnboundedProcessor<ByteBuf> sendProcessor = this.sendProcessor;
     final UnicastProcessor<Payload> receiver = UnicastProcessor.create();
-
-    receivers.put(streamId, receiver);
+    final StreamId deferredStreamId = new StreamId();
 
     return receiver
         .doOnRequest(
             new LongConsumer() {
 
-              boolean firstRequest = true;
+              boolean isRequestSent;
 
               @Override
-              public void accept(long n) {
-                if (firstRequest && !receiver.isDisposed()) {
-                  firstRequest = false;
-                  sendProcessor.onNext(
-                      RequestStreamFrameFlyweight.encode(
-                          allocator,
-                          streamId,
-                          false,
-                          n,
-                          payload.sliceMetadata().retain(),
-                          payload.sliceData().retain()));
-                  payload.release();
-                } else if (contains(streamId) && !receiver.isDisposed()) {
-                  sendProcessor.onNext(RequestNFrameFlyweight.encode(allocator, streamId, n));
+              public void accept(long requestN) {
+                // todo check rsocket terminated
+                if (!receiver.isDisposed()) {
+                  if (!isRequestSent) {
+                    isRequestSent = true;
+
+                    final int streamId =
+                        deferredStreamId.set(streamIdSupplier.nextStreamId(receivers));
+                    receivers.put(streamId, receiver);
+
+                    sendProcessor.onNext(
+                        RequestStreamFrameFlyweight.encode(
+                            allocator,
+                            streamId,
+                            false,
+                            requestN,
+                            payload.sliceMetadata().retain(),
+                            payload.sliceData().retain()));
+                    payload.release();
+                  } else {
+                    final int streamId = deferredStreamId.get();
+                    if (contains(streamId)) {
+                      sendProcessor.onNext(
+                          RequestNFrameFlyweight.encode(allocator, streamId, requestN));
+                    }
+                  }
                 }
               }
             })
-        .doOnCancel(
-            () -> {
-              if (contains(streamId) && !receiver.isDisposed()) {
-                sendProcessor.onNext(CancelFrameFlyweight.encode(allocator, streamId));
+        .doFinally(
+            signalType -> {
+              final int streamId = deferredStreamId.get();
+              if (streamId > 0) {
+                if (signalType == SignalType.CANCEL) {
+                  if (!receiver.isDisposed() && contains(streamId)) {
+                    sendProcessor.onNext(CancelFrameFlyweight.encode(allocator, streamId));
+                  }
+                }
+                removeStreamReceiver(streamId);
               }
             })
-        .doFinally(s -> removeStreamReceiver(streamId));
+        .subscribeOn(transportScheduler);
   }
 
   private Flux<Payload> handleChannel(Flux<Payload> request) {
