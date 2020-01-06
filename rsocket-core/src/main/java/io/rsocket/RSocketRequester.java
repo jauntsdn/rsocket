@@ -263,7 +263,7 @@ class RSocketRequester implements RSocket {
               if (s == SignalType.CANCEL) {
                 sendProcessor.onNext(CancelFrameFlyweight.encode(allocator, streamId));
               }
-              removeStreamReceiver(streamId);
+              removeReceiver(streamId);
             })
         .subscribeOn(transportScheduler);
   }
@@ -337,7 +337,7 @@ class RSocketRequester implements RSocket {
               if (signalType == SignalType.CANCEL && contains(streamId)) {
                 sendProcessor.onNext(CancelFrameFlyweight.encode(allocator, streamId));
               }
-              removeStreamReceiver(streamId);
+              removeReceiver(streamId);
             })
         .subscribeOn(transportScheduler);
   }
@@ -470,7 +470,7 @@ class RSocketRequester implements RSocket {
                   sendProcessor.onNext(CancelFrameFlyweight.encode(allocator, streamId));
                 }
               }
-              removeStreamReceiverAndSender(streamId);
+              removeReceiverAndSender(streamId);
             });
   }
 
@@ -692,7 +692,7 @@ class RSocketRequester implements RSocket {
     errorConsumer.accept(e);
   }
 
-  private void removeStreamReceiver(int streamId) {
+  private void removeReceiver(int streamId) {
     /*on termination receivers are explicitly cleared to avoid removing from map while iterating over one
     of its views*/
     if (terminationError == null) {
@@ -700,7 +700,7 @@ class RSocketRequester implements RSocket {
     }
   }
 
-  private void removeStreamReceiverAndSender(int streamId) {
+  private void removeReceiverAndSender(int streamId) {
     /*on termination senders & receivers are explicitly cleared to avoid removing from map while iterating over one
     of its views*/
     if (terminationError == null) {

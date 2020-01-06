@@ -316,7 +316,7 @@ class RSocketResponder implements ResponderRSocket {
 
           @Override
           protected void hookFinally(SignalType type) {
-            removeStreamSender(streamId);
+            removeSender(streamId);
           }
         });
   }
@@ -365,7 +365,7 @@ class RSocketResponder implements ResponderRSocket {
 
           @Override
           protected void hookFinally(SignalType type) {
-            removeStreamSender(streamId);
+            removeSender(streamId);
           }
         });
   }
@@ -408,7 +408,7 @@ class RSocketResponder implements ResponderRSocket {
 
           @Override
           protected void hookFinally(SignalType type) {
-            removeStreamSender(streamId);
+            removeSender(streamId);
           }
         });
   }
@@ -424,7 +424,7 @@ class RSocketResponder implements ResponderRSocket {
             .doOnError(t -> handleError(streamId, t))
             .doOnRequest(
                 l -> sendProcessor.onNext(RequestNFrameFlyweight.encode(allocator, streamId, l)))
-            .doFinally(signalType -> removeStreamReceiver(streamId));
+            .doFinally(signalType -> removeReceiver(streamId));
 
     // not chained, as the payload should be enqueued in the Unicast processor before this method
     // returns
@@ -466,7 +466,7 @@ class RSocketResponder implements ResponderRSocket {
     }
   }
 
-  private void removeStreamReceiver(int streamId) {
+  private void removeReceiver(int streamId) {
     /*on termination receivers are explicitly cleared to avoid removing from map while iterating over one
     of its views*/
     if (terminationError == null) {
@@ -474,7 +474,7 @@ class RSocketResponder implements ResponderRSocket {
     }
   }
 
-  private void removeStreamSender(int streamId) {
+  private void removeSender(int streamId) {
     /*on termination receivers are explicitly cleared to avoid removing from map while iterating over one
     of its views*/
     if (terminationError == null) {
