@@ -82,8 +82,6 @@ public class RSocketTest {
 
     // Client sees error through normal API
     rule.assertNoClientErrors();
-
-    rule.assertServerError("java.lang.NullPointerException: Deliberate exception.");
   }
 
   @Test(timeout = 2000)
