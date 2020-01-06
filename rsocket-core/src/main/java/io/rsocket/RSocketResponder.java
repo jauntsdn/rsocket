@@ -71,8 +71,6 @@ class RSocketResponder implements ResponderRSocket {
     this.senders = new SynchronizedIntObjectHashMap<>();
     this.receivers = new SynchronizedIntObjectHashMap<>();
 
-    // DO NOT Change the order here. The Send processor must be subscribed to before receiving
-    // connections
     this.sendProcessor = new UnboundedProcessor<>();
 
     connection
@@ -267,9 +265,6 @@ class RSocketResponder implements ResponderRSocket {
         case REQUEST_RESPONSE:
           handleRequestResponse(streamId, requestResponse(payloadDecoder.apply(frame)));
           break;
-        case CANCEL:
-          handleCancelFrame(streamId);
-          break;
         case REQUEST_N:
           handleRequestN(streamId, frame);
           break;
@@ -286,25 +281,10 @@ class RSocketResponder implements ResponderRSocket {
         case METADATA_PUSH:
           handleMetadataPush(metadataPush(payloadDecoder.apply(frame)));
           break;
-        case PAYLOAD:
-          // TODO: Hook in receiving socket.
-          break;
         case NEXT:
           receiver = receivers.get(streamId);
           if (receiver != null) {
             receiver.onNext(payloadDecoder.apply(frame));
-          }
-          break;
-        case COMPLETE:
-          receiver = receivers.get(streamId);
-          if (receiver != null) {
-            receiver.onComplete();
-          }
-          break;
-        case ERROR:
-          receiver = receivers.get(streamId);
-          if (receiver != null) {
-            receiver.onError(new ApplicationErrorException(ErrorFrameFlyweight.dataUtf8(frame)));
           }
           break;
         case NEXT_COMPLETE:
@@ -314,9 +294,28 @@ class RSocketResponder implements ResponderRSocket {
             receiver.onComplete();
           }
           break;
+        case COMPLETE:
+          receiver = receivers.get(streamId);
+          if (receiver != null) {
+            receiver.onComplete();
+          }
+          break;
+        case CANCEL:
+          Subscription sender = senders.remove(streamId);
+          if (sender != null) {
+            sender.cancel();
+          }
+          break;
+        case ERROR:
+          receiver = receivers.get(streamId);
+          if (receiver != null) {
+            receiver.onError(new ApplicationErrorException(ErrorFrameFlyweight.dataUtf8(frame)));
+          }
+          break;
         case SETUP:
           handleError(streamId, new IllegalStateException("Setup frame received post setup."));
           break;
+        case PAYLOAD:
         case LEASE:
         default:
           handleError(
@@ -484,25 +483,16 @@ class RSocketResponder implements ResponderRSocket {
         });
   }
 
-  private void handleCancelFrame(int streamId) {
-    Subscription subscription = senders.remove(streamId);
-
-    if (subscription != null) {
-      subscription.cancel();
-    }
-  }
-
   private void handleError(int streamId, Throwable t) {
     errorConsumer.accept(t);
     sendProcessor.onNext(ErrorFrameFlyweight.encode(allocator, streamId, t));
   }
 
   private void handleRequestN(int streamId, ByteBuf frame) {
-    Subscription subscription = senders.get(streamId);
-
-    if (subscription != null) {
+    Subscription sender = senders.get(streamId);
+    if (sender != null) {
       int n = RequestNFrameFlyweight.requestN(frame);
-      subscription.request(n == Integer.MAX_VALUE ? Long.MAX_VALUE : n);
+      sender.request(n == Integer.MAX_VALUE ? Long.MAX_VALUE : n);
     }
   }
 }
