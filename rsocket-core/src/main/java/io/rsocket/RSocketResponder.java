@@ -26,6 +26,7 @@ import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.internal.SynchronizedIntObjectHashMap;
 import io.rsocket.internal.UnboundedProcessor;
 import io.rsocket.lease.ResponderLeaseHandler;
+import java.nio.channels.ClosedChannelException;
 import java.util.function.Consumer;
 import org.reactivestreams.Processor;
 import org.reactivestreams.Publisher;
@@ -37,6 +38,11 @@ import reactor.core.publisher.*;
 
 /** Responder side of RSocket. Receives {@link ByteBuf}s from a peer's {@link RSocketRequester} */
 class RSocketResponder implements ResponderRSocket {
+  private static final Exception CLOSED_CHANNEL_EXCEPTION = new ClosedChannelException();
+
+  static {
+    CLOSED_CHANNEL_EXCEPTION.setStackTrace(new StackTraceElement[0]);
+  }
 
   private final DuplexConnection connection;
   private final RSocket requestHandler;
@@ -50,6 +56,9 @@ class RSocketResponder implements ResponderRSocket {
 
   private final UnboundedProcessor<ByteBuf> sendProcessor;
   private final ByteBufAllocator allocator;
+  private final Disposable leaseDisposable;
+
+  private volatile Throwable terminationError;
 
   RSocketResponder(
       ByteBufAllocator allocator,
@@ -73,75 +82,12 @@ class RSocketResponder implements ResponderRSocket {
 
     this.sendProcessor = new UnboundedProcessor<>();
 
-    connection
-        .send(sendProcessor)
-        .doFinally(this::handleSendProcessorCancel)
-        .subscribe(null, this::handleSendProcessorError);
+    connection.send(sendProcessor).subscribe(null, this::handleSendProcessorError);
 
-    Disposable receiveDisposable = connection.receive().subscribe(this::handleFrame, errorConsumer);
-    Disposable sendLeaseDisposable = leaseHandler.send(sendProcessor::onNext);
+    connection.receive().subscribe(this::handleFrame, errorConsumer);
+    this.leaseDisposable = leaseHandler.send(sendProcessor::onNext);
 
-    this.connection
-        .onClose()
-        .doFinally(
-            s -> {
-              cleanup();
-              receiveDisposable.dispose();
-              sendLeaseDisposable.dispose();
-            })
-        .subscribe(null, errorConsumer);
-  }
-
-  private void handleSendProcessorError(Throwable t) {
-    senders
-        .values()
-        .forEach(
-            subscription -> {
-              try {
-                subscription.cancel();
-              } catch (Throwable e) {
-                errorConsumer.accept(e);
-              }
-            });
-
-    receivers
-        .values()
-        .forEach(
-            receiver -> {
-              try {
-                receiver.onError(t);
-              } catch (Throwable e) {
-                errorConsumer.accept(e);
-              }
-            });
-  }
-
-  private void handleSendProcessorCancel(SignalType t) {
-    if (SignalType.ON_ERROR == t) {
-      return;
-    }
-
-    senders
-        .values()
-        .forEach(
-            subscription -> {
-              try {
-                subscription.cancel();
-              } catch (Throwable e) {
-                errorConsumer.accept(e);
-              }
-            });
-
-    receivers
-        .values()
-        .forEach(
-            receiver -> {
-              try {
-                receiver.onComplete();
-              } catch (Throwable e) {
-                errorConsumer.accept(e);
-              }
-            });
+    this.connection.onClose().doFinally(s -> terminate()).subscribe(null, errorConsumer);
   }
 
   @Override
@@ -237,20 +183,44 @@ class RSocketResponder implements ResponderRSocket {
     return connection.onClose();
   }
 
-  private void cleanup() {
+  private void terminate() {
+    Exception e = CLOSED_CHANNEL_EXCEPTION;
+    this.terminationError = e;
 
-    synchronized (this) {
-      senders.values().forEach(Subscription::cancel);
-      senders.clear();
+    synchronized (receivers) {
+      receivers
+          .values()
+          .forEach(
+              receiver -> {
+                try {
+                  receiver.onError(e);
+                } catch (Throwable t) {
+                  errorConsumer.accept(t);
+                }
+              });
     }
-
-    synchronized (this) {
-      receivers.values().forEach(Processor::onComplete);
-      receivers.clear();
+    synchronized (senders) {
+      senders
+          .values()
+          .forEach(
+              sender -> {
+                try {
+                  sender.cancel();
+                } catch (Throwable t) {
+                  errorConsumer.accept(t);
+                }
+              });
     }
+    senders.clear();
+    receivers.clear();
 
     requestHandler.dispose();
     sendProcessor.dispose();
+    leaseDisposable.dispose();
+  }
+
+  private void handleSendProcessorError(Throwable t) {
+    connection.dispose();
   }
 
   private void handleFrame(ByteBuf frame) {
@@ -346,7 +316,7 @@ class RSocketResponder implements ResponderRSocket {
 
           @Override
           protected void hookFinally(SignalType type) {
-            senders.remove(streamId);
+            removeStreamSender(streamId);
           }
         });
   }
@@ -395,7 +365,7 @@ class RSocketResponder implements ResponderRSocket {
 
           @Override
           protected void hookFinally(SignalType type) {
-            senders.remove(streamId);
+            removeStreamSender(streamId);
           }
         });
   }
@@ -438,7 +408,7 @@ class RSocketResponder implements ResponderRSocket {
 
           @Override
           protected void hookFinally(SignalType type) {
-            senders.remove(streamId);
+            removeStreamSender(streamId);
           }
         });
   }
@@ -454,7 +424,7 @@ class RSocketResponder implements ResponderRSocket {
             .doOnError(t -> handleError(streamId, t))
             .doOnRequest(
                 l -> sendProcessor.onNext(RequestNFrameFlyweight.encode(allocator, streamId, l)))
-            .doFinally(signalType -> receivers.remove(streamId));
+            .doFinally(signalType -> removeStreamReceiver(streamId));
 
     // not chained, as the payload should be enqueued in the Unicast processor before this method
     // returns
@@ -493,6 +463,22 @@ class RSocketResponder implements ResponderRSocket {
     if (sender != null) {
       int n = RequestNFrameFlyweight.requestN(frame);
       sender.request(n == Integer.MAX_VALUE ? Long.MAX_VALUE : n);
+    }
+  }
+
+  private void removeStreamReceiver(int streamId) {
+    /*on termination receivers are explicitly cleared to avoid removing from map while iterating over one
+    of its views*/
+    if (terminationError == null) {
+      receivers.remove(streamId);
+    }
+  }
+
+  private void removeStreamSender(int streamId) {
+    /*on termination receivers are explicitly cleared to avoid removing from map while iterating over one
+    of its views*/
+    if (terminationError == null) {
+      senders.remove(streamId);
     }
   }
 }
