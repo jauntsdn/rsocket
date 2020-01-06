@@ -18,6 +18,7 @@ package io.rsocket;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
+import io.netty.buffer.ByteBufUtil;
 import io.netty.util.ReferenceCountUtil;
 import io.netty.util.collection.IntObjectMap;
 import io.rsocket.exceptions.ApplicationErrorException;
@@ -32,12 +33,15 @@ import org.reactivestreams.Processor;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import reactor.core.Disposable;
 import reactor.core.Exceptions;
 import reactor.core.publisher.*;
 
 /** Responder side of RSocket. Receives {@link ByteBuf}s from a peer's {@link RSocketRequester} */
 class RSocketResponder implements ResponderRSocket {
+  private static final Logger logger = LoggerFactory.getLogger(RSocketResponder.class);
   private static final Exception CLOSED_CHANNEL_EXCEPTION = new ClosedChannelException();
 
   static {
@@ -184,8 +188,11 @@ class RSocketResponder implements ResponderRSocket {
   }
 
   private void terminate() {
-    Exception e = CLOSED_CHANNEL_EXCEPTION;
-    this.terminationError = e;
+    Throwable e = this.terminationError;
+    if (e == null) {
+      this.terminationError = e = CLOSED_CHANNEL_EXCEPTION;
+    }
+    final Throwable err = e;
 
     synchronized (receivers) {
       receivers
@@ -193,7 +200,7 @@ class RSocketResponder implements ResponderRSocket {
           .forEach(
               receiver -> {
                 try {
-                  receiver.onError(e);
+                  receiver.onError(err);
                 } catch (Throwable t) {
                   errorConsumer.accept(t);
                 }
@@ -283,14 +290,21 @@ class RSocketResponder implements ResponderRSocket {
           }
           break;
         case SETUP:
-          handleError(streamId, new IllegalStateException("Setup frame received post setup."));
+          disposeConnection(new IllegalStateException("SETUP frame received post setup"));
           break;
         case PAYLOAD:
+          disposeConnection(
+              new IllegalStateException(
+                  "Unexpected PAYLOAD frame received: expect NEXT, NEXT_COMPLETE, COMPLETE"));
+          break;
         case LEASE:
+          disposeConnection(new IllegalStateException("Unexpected LEASE frame received"));
+          break;
         default:
-          handleError(
-              streamId,
-              new IllegalStateException("ServerRSocket: Unexpected frame type: " + frameType));
+          if (logger.isDebugEnabled()) {
+            logger.debug("Unexpected frame received: {}", frameType);
+            logger.debug(ByteBufUtil.hexDump(frame));
+          }
           break;
       }
       ReferenceCountUtil.safeRelease(frame);
@@ -353,7 +367,7 @@ class RSocketResponder implements ResponderRSocket {
 
           @Override
           protected void hookOnError(Throwable throwable) {
-            handleError(streamId, throwable);
+            sendProcessor.onNext(ErrorFrameFlyweight.encode(allocator, streamId, throwable));
           }
 
           @Override
@@ -403,7 +417,7 @@ class RSocketResponder implements ResponderRSocket {
 
           @Override
           protected void hookOnError(Throwable throwable) {
-            handleError(streamId, throwable);
+            sendProcessor.onNext(ErrorFrameFlyweight.encode(allocator, streamId, throwable));
           }
 
           @Override
@@ -421,7 +435,6 @@ class RSocketResponder implements ResponderRSocket {
         frames
             .doOnCancel(
                 () -> sendProcessor.onNext(CancelFrameFlyweight.encode(allocator, streamId)))
-            .doOnError(t -> handleError(streamId, t))
             .doOnRequest(
                 l -> sendProcessor.onNext(RequestNFrameFlyweight.encode(allocator, streamId, l)))
             .doFinally(signalType -> removeReceiver(streamId));
@@ -453,9 +466,14 @@ class RSocketResponder implements ResponderRSocket {
         });
   }
 
-  private void handleError(int streamId, Throwable t) {
+  private void disposeConnection(Throwable t) {
+    terminationError = t;
+
+    connection
+        .sendOne(ErrorFrameFlyweight.encode(allocator, 0, t))
+        .doFinally(s -> connection.dispose())
+        .subscribe(null, errorConsumer);
     errorConsumer.accept(t);
-    sendProcessor.onNext(ErrorFrameFlyweight.encode(allocator, streamId, t));
   }
 
   private void handleRequestN(int streamId, ByteBuf frame) {
