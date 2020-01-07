@@ -9,7 +9,7 @@ public class TestServerTransport implements ServerTransport<Closeable> {
   private final MonoProcessor<TestDuplexConnection> conn = MonoProcessor.create();
 
   @Override
-  public Mono<Closeable> start(ConnectionAcceptor acceptor, int mtu) {
+  public Mono<Closeable> start(ConnectionAcceptor acceptor) {
     conn.flatMap(acceptor::apply)
         .subscribe(ignored -> {}, err -> disposeConnection(), this::disposeConnection);
     return Mono.just(

@@ -20,9 +20,7 @@ import static io.rsocket.frame.FrameLengthFlyweight.FRAME_LENGTH_MASK;
 import static io.rsocket.transport.netty.UriUtils.getPort;
 import static io.rsocket.transport.netty.UriUtils.isSecure;
 
-import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.DuplexConnection;
-import io.rsocket.fragmentation.FragmentationDuplexConnection;
 import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.ServerTransport;
 import io.rsocket.transport.TransportHeaderAware;
@@ -150,25 +148,13 @@ public final class WebsocketClientTransport implements ClientTransport, Transpor
   }
 
   @Override
-  public Mono<DuplexConnection> connect(int mtu) {
-    Mono<DuplexConnection> isError = FragmentationDuplexConnection.checkMtu(mtu);
-    return isError != null
-        ? isError
-        : client
-            .headers(headers -> transportHeaders.get().forEach(headers::set))
-            .websocket(FRAME_LENGTH_MASK)
-            .uri(path)
-            .connect()
-            .map(
-                c -> {
-                  DuplexConnection connection = new WebsocketDuplexConnection(c);
-                  if (mtu > 0) {
-                    connection =
-                        new FragmentationDuplexConnection(
-                            connection, ByteBufAllocator.DEFAULT, mtu, false, "client");
-                  }
-                  return connection;
-                });
+  public Mono<DuplexConnection> connect() {
+    return client
+        .headers(headers -> transportHeaders.get().forEach(headers::set))
+        .websocket(FRAME_LENGTH_MASK)
+        .uri(path)
+        .connect()
+        .map(WebsocketDuplexConnection::new);
   }
 
   @Override

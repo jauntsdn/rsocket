@@ -18,9 +18,7 @@ package io.rsocket.transport.netty.server;
 
 import static io.rsocket.frame.FrameLengthFlyweight.FRAME_LENGTH_MASK;
 
-import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.DuplexConnection;
-import io.rsocket.fragmentation.FragmentationDuplexConnection;
 import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.ServerTransport;
 import io.rsocket.transport.TransportHeaderAware;
@@ -111,31 +109,21 @@ public final class WebsocketServerTransport extends BaseWebsocketServerTransport
   }
 
   @Override
-  public Mono<CloseableChannel> start(ConnectionAcceptor acceptor, int mtu) {
+  public Mono<CloseableChannel> start(ConnectionAcceptor acceptor) {
     Objects.requireNonNull(acceptor, "acceptor must not be null");
-
-    Mono<CloseableChannel> isError = FragmentationDuplexConnection.checkMtu(mtu);
-    return isError != null
-        ? isError
-        : server
-            .handle(
-                (request, response) -> {
-                  transportHeaders.get().forEach(response::addHeader);
-                  return response.sendWebsocket(
-                      null,
-                      FRAME_LENGTH_MASK,
-                      (in, out) -> {
-                        DuplexConnection connection =
-                            new WebsocketDuplexConnection((Connection) in);
-                        if (mtu > 0) {
-                          connection =
-                              new FragmentationDuplexConnection(
-                                  connection, ByteBufAllocator.DEFAULT, mtu, false, "server");
-                        }
-                        return acceptor.apply(connection).then(out.neverComplete());
-                      });
-                })
-            .bind()
-            .map(CloseableChannel::new);
+    return server
+        .handle(
+            (request, response) -> {
+              transportHeaders.get().forEach(response::addHeader);
+              return response.sendWebsocket(
+                  null,
+                  FRAME_LENGTH_MASK,
+                  (in, out) -> {
+                    DuplexConnection connection = new WebsocketDuplexConnection((Connection) in);
+                    return acceptor.apply(connection).then(out.neverComplete());
+                  });
+            })
+        .bind()
+        .map(CloseableChannel::new);
   }
 }

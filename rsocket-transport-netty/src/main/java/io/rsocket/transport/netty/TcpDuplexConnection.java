@@ -34,26 +34,14 @@ public final class TcpDuplexConnection extends BaseDuplexConnection {
 
   private final Connection connection;
   private final ByteBufAllocator allocator = ByteBufAllocator.DEFAULT;
-  private final boolean encodeLength;
   private final Scheduler scheduler;
 
   /**
    * Creates a new instance
    *
-   * @param connection the {@link Connection} for managing the server
-   */
-  public TcpDuplexConnection(Connection connection) {
-    this(connection, true);
-  }
-
-  /**
-   * Creates a new instance
-   *
-   * @param encodeLength indicates if this connection should encode the length or not.
    * @param connection the {@link Connection} to for managing the server
    */
-  public TcpDuplexConnection(Connection connection, boolean encodeLength) {
-    this.encodeLength = encodeLength;
+  public TcpDuplexConnection(Connection connection) {
     this.connection = Objects.requireNonNull(connection, "connection must not be null");
     this.scheduler = Schedulers.fromExecutor(connection.channel().eventLoop());
 
@@ -92,18 +80,10 @@ public final class TcpDuplexConnection extends BaseDuplexConnection {
   }
 
   private ByteBuf encode(ByteBuf frame) {
-    if (encodeLength) {
-      return FrameLengthFlyweight.encode(allocator, frame.readableBytes(), frame);
-    } else {
-      return frame;
-    }
+    return FrameLengthFlyweight.encode(allocator, frame.readableBytes(), frame);
   }
 
   private ByteBuf decode(ByteBuf frame) {
-    if (encodeLength) {
-      return FrameLengthFlyweight.frame(frame).retain();
-    } else {
-      return frame;
-    }
+    return FrameLengthFlyweight.frame(frame).retain();
   }
 }

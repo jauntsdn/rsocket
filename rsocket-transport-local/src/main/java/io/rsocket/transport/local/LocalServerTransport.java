@@ -16,10 +16,8 @@
 
 package io.rsocket.transport.local;
 
-import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.Closeable;
 import io.rsocket.DuplexConnection;
-import io.rsocket.fragmentation.FragmentationDuplexConnection;
 import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.ServerTransport;
 import java.util.Objects;
@@ -104,23 +102,19 @@ public final class LocalServerTransport implements ServerTransport<Closeable> {
   }
 
   @Override
-  public Mono<Closeable> start(ConnectionAcceptor acceptor, int mtu) {
+  public Mono<Closeable> start(ConnectionAcceptor acceptor) {
     Objects.requireNonNull(acceptor, "acceptor must not be null");
+    return Mono.create(
+        sink -> {
+          ServerDuplexConnectionAcceptor serverDuplexConnectionAcceptor =
+              new ServerDuplexConnectionAcceptor(name, acceptor);
 
-    Mono<Closeable> isError = FragmentationDuplexConnection.checkMtu(mtu);
-    return isError != null
-        ? isError
-        : Mono.create(
-            sink -> {
-              ServerDuplexConnectionAcceptor serverDuplexConnectionAcceptor =
-                  new ServerDuplexConnectionAcceptor(name, acceptor, mtu);
+          if (registry.putIfAbsent(name, serverDuplexConnectionAcceptor) != null) {
+            throw new IllegalStateException("name already registered: " + name);
+          }
 
-              if (registry.putIfAbsent(name, serverDuplexConnectionAcceptor) != null) {
-                throw new IllegalStateException("name already registered: " + name);
-              }
-
-              sink.success(serverDuplexConnectionAcceptor);
-            });
+          sink.success(serverDuplexConnectionAcceptor);
+        });
   }
 
   /**
@@ -143,8 +137,6 @@ public final class LocalServerTransport implements ServerTransport<Closeable> {
 
     private final MonoProcessor<Void> onClose = MonoProcessor.create();
 
-    private final int mtu;
-
     /**
      * Creates a new instance
      *
@@ -152,23 +144,16 @@ public final class LocalServerTransport implements ServerTransport<Closeable> {
      * @param acceptor the {@link ConnectionAcceptor} to call when the server has been created
      * @throws NullPointerException if {@code name} or {@code acceptor} is {@code null}
      */
-    ServerDuplexConnectionAcceptor(String name, ConnectionAcceptor acceptor, int mtu) {
+    ServerDuplexConnectionAcceptor(String name, ConnectionAcceptor acceptor) {
       Objects.requireNonNull(name, "name must not be null");
 
       this.address = new LocalSocketAddress(name);
       this.acceptor = Objects.requireNonNull(acceptor, "acceptor must not be null");
-      this.mtu = mtu;
     }
 
     @Override
     public void accept(DuplexConnection duplexConnection) {
       Objects.requireNonNull(duplexConnection, "duplexConnection must not be null");
-
-      if (mtu > 0) {
-        duplexConnection =
-            new FragmentationDuplexConnection(
-                duplexConnection, ByteBufAllocator.DEFAULT, mtu, false, "server");
-      }
 
       acceptor.apply(duplexConnection).subscribe();
     }

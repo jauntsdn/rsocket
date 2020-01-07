@@ -26,8 +26,7 @@ public interface ClientTransport extends Transport {
    * Returns a {@code Publisher}, every subscription to which returns a single {@code
    * DuplexConnection}.
    *
-   * @param mtu The mtu used for fragmentation - if set to zero fragmentation will be disabled
    * @return {@code Publisher}, every subscription returns a single {@code DuplexConnection}.
    */
-  Mono<DuplexConnection> connect(int mtu);
+  Mono<DuplexConnection> connect();
 }

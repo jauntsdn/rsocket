@@ -16,9 +16,6 @@
 
 package io.rsocket.transport.netty.server;
 
-import io.netty.buffer.ByteBufAllocator;
-import io.rsocket.DuplexConnection;
-import io.rsocket.fragmentation.FragmentationDuplexConnection;
 import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.ServerTransport;
 import io.rsocket.transport.netty.RSocketLengthCodec;
@@ -92,33 +89,18 @@ public final class TcpServerTransport implements ServerTransport<CloseableChanne
   }
 
   @Override
-  public Mono<CloseableChannel> start(ConnectionAcceptor acceptor, int mtu) {
+  public Mono<CloseableChannel> start(ConnectionAcceptor acceptor) {
     Objects.requireNonNull(acceptor, "acceptor must not be null");
-    Mono<CloseableChannel> isError = FragmentationDuplexConnection.checkMtu(mtu);
-    return isError != null
-        ? isError
-        : server
-            .doOnConnection(
-                c -> {
-                  c.addHandlerLast(new RSocketLengthCodec());
-                  DuplexConnection connection;
-                  if (mtu > 0) {
-                    connection =
-                        new FragmentationDuplexConnection(
-                            new TcpDuplexConnection(c, false),
-                            ByteBufAllocator.DEFAULT,
-                            mtu,
-                            true,
-                            "server");
-                  } else {
-                    connection = new TcpDuplexConnection(c);
-                  }
-                  acceptor
-                      .apply(connection)
-                      .then(Mono.<Void>never())
-                      .subscribe(c.disposeSubscriber());
-                })
-            .bind()
-            .map(CloseableChannel::new);
+    return server
+        .doOnConnection(
+            c -> {
+              c.addHandlerLast(new RSocketLengthCodec());
+              acceptor
+                  .apply(new TcpDuplexConnection(c))
+                  .then(Mono.<Void>never())
+                  .subscribe(c.disposeSubscriber());
+            })
+        .bind()
+        .map(CloseableChannel::new);
   }
 }

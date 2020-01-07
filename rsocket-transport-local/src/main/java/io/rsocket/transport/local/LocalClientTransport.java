@@ -17,9 +17,7 @@
 package io.rsocket.transport.local;
 
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.DuplexConnection;
-import io.rsocket.fragmentation.FragmentationDuplexConnection;
 import io.rsocket.internal.UnboundedProcessor;
 import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.ServerTransport;
@@ -48,12 +46,11 @@ public final class LocalClientTransport implements ClientTransport {
    * @throws NullPointerException if {@code name} is {@code null}
    */
   public static LocalClientTransport create(String name) {
-    Objects.requireNonNull(name, "name must not be null");
-
-    return new LocalClientTransport(name);
+    return new LocalClientTransport(Objects.requireNonNull(name, "name must not be null"));
   }
 
-  private Mono<DuplexConnection> connect() {
+  @Override
+  public Mono<DuplexConnection> connect() {
     return Mono.defer(
         () -> {
           ServerDuplexConnectionAcceptor server = LocalServerTransport.findServer(name);
@@ -69,19 +66,5 @@ public final class LocalClientTransport implements ClientTransport {
 
           return Mono.just((DuplexConnection) new LocalDuplexConnection(in, out, closeNotifier));
         });
-  }
-
-  @Override
-  public Mono<DuplexConnection> connect(int mtu) {
-    Mono<DuplexConnection> isError = FragmentationDuplexConnection.checkMtu(mtu);
-    Mono<DuplexConnection> connect = isError != null ? isError : connect();
-    if (mtu > 0) {
-      return connect.map(
-          duplexConnection ->
-              new FragmentationDuplexConnection(
-                  duplexConnection, ByteBufAllocator.DEFAULT, mtu, false, "client"));
-    } else {
-      return connect;
-    }
   }
 }

@@ -63,7 +63,7 @@ final class WebsocketRouteTransportTest {
         new WebsocketRouteTransport(HttpServer.create(), routes -> {}, "/test-path");
 
     serverTransport
-        .start(duplexConnection -> Mono.empty(), 0)
+        .start(duplexConnection -> Mono.empty())
         .as(StepVerifier::create)
         .expectNextCount(1)
         .verifyComplete();
@@ -76,7 +76,7 @@ final class WebsocketRouteTransportTest {
         .isThrownBy(
             () ->
                 new WebsocketRouteTransport(HttpServer.create(), routes -> {}, "/test-path")
-                    .start(null, 0))
+                    .start(null))
         .withMessage("acceptor must not be null");
   }
 }

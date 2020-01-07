@@ -87,7 +87,7 @@ final class TcpServerTransportTest {
     TcpServerTransport serverTransport = TcpServerTransport.create(address);
 
     serverTransport
-        .start(duplexConnection -> Mono.empty(), 0)
+        .start(duplexConnection -> Mono.empty())
         .as(StepVerifier::create)
         .expectNextCount(1)
         .verifyComplete();
@@ -97,7 +97,7 @@ final class TcpServerTransportTest {
   @Test
   void startNullAcceptor() {
     assertThatNullPointerException()
-        .isThrownBy(() -> TcpServerTransport.create("localhost", 8000).start(null, 0))
+        .isThrownBy(() -> TcpServerTransport.create("localhost", 8000).start(null))
         .withMessage("acceptor must not be null");
   }
 }

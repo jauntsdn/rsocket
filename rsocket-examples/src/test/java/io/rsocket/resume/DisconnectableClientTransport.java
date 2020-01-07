@@ -33,13 +33,13 @@ class DisconnectableClientTransport implements ClientTransport {
   }
 
   @Override
-  public Mono<DuplexConnection> connect(int mtu) {
+  public Mono<DuplexConnection> connect() {
     return Mono.defer(
         () ->
             now() < nextConnectPermitMillis
                 ? Mono.error(new ClosedChannelException())
                 : clientTransport
-                    .connect(mtu)
+                    .connect()
                     .map(
                         c -> {
                           if (curConnection.compareAndSet(null, c)) {

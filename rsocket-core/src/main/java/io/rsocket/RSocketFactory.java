@@ -23,6 +23,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.exceptions.InvalidSetupException;
 import io.rsocket.exceptions.RejectedSetupException;
+import io.rsocket.fragmentation.FragmentationDuplexConnection;
 import io.rsocket.frame.FrameHeaderFlyweight;
 import io.rsocket.frame.ResumeFrameFlyweight;
 import io.rsocket.frame.SetupFrameFlyweight;
@@ -127,6 +128,7 @@ public class RSocketFactory {
     private Supplier<Leases<?>> leasesSupplier = Leases::new;
 
     private ByteBufAllocator allocator = ByteBufAllocator.DEFAULT;
+    private boolean acceptFragmentedFrames;
 
     public ClientRSocketFactory byteBufAllocator(ByteBufAllocator allocator) {
       Objects.requireNonNull(allocator);
@@ -284,8 +286,8 @@ public class RSocketFactory {
       return StartClient::new;
     }
 
-    public ClientRSocketFactory fragment(int mtu) {
-      this.mtu = mtu;
+    public ClientRSocketFactory acceptFragmentedFrames() {
+      this.acceptFragmentedFrames = true;
       return this;
     }
 
@@ -316,6 +318,10 @@ public class RSocketFactory {
         return newConnection()
             .flatMap(
                 connection -> {
+                  if (acceptFragmentedFrames) {
+                    connection = new FragmentationDuplexConnection(connection, allocator);
+                  }
+
                   ClientSetup clientSetup = clientSetup(connection);
                   ByteBuf resumeToken = clientSetup.resumeToken();
                   KeepAliveHandler keepAliveHandler = clientSetup.keepAliveHandler();
@@ -422,7 +428,7 @@ public class RSocketFactory {
       }
 
       private Mono<DuplexConnection> newConnection() {
-        return transportClient.get().connect(mtu);
+        return transportClient.get().connect();
       }
     }
   }
@@ -433,7 +439,6 @@ public class RSocketFactory {
     private SocketAcceptor acceptor;
     private PayloadDecoder payloadDecoder = PayloadDecoder.DEFAULT;
     private Consumer<Throwable> errorConsumer = Throwable::printStackTrace;
-    private int mtu = 0;
     private PluginRegistry plugins = new PluginRegistry(Plugins.defaultPlugins());
 
     private boolean resumeSupported;
@@ -448,6 +453,7 @@ public class RSocketFactory {
 
     private ByteBufAllocator allocator = ByteBufAllocator.DEFAULT;
     private boolean resumeCleanupStoreOnKeepAlive;
+    private boolean acceptFragmentedFrames;
 
     private ServerRSocketFactory() {}
 
@@ -498,8 +504,8 @@ public class RSocketFactory {
       return this;
     }
 
-    public ServerRSocketFactory fragment(int mtu) {
-      this.mtu = mtu;
+    public ServerRSocketFactory acceptFragmentedFrames() {
+      this.acceptFragmentedFrames = true;
       return this;
     }
 
@@ -573,6 +579,11 @@ public class RSocketFactory {
       }
 
       private Mono<Void> acceptor(ServerSetup serverSetup, DuplexConnection connection) {
+
+        if (acceptFragmentedFrames) {
+          connection = new FragmentationDuplexConnection(connection, allocator);
+        }
+
         ClientServerInputMultiplexer multiplexer =
             new ClientServerInputMultiplexer(connection, plugins, false);
 
@@ -700,7 +711,7 @@ public class RSocketFactory {
               public Mono<T> get() {
                 return transportServer
                     .get()
-                    .start(duplexConnection -> acceptor(serverSetup, duplexConnection), mtu)
+                    .start(duplexConnection -> acceptor(serverSetup, duplexConnection))
                     .doOnNext(c -> c.onClose().doFinally(v -> serverSetup.dispose()).subscribe());
               }
             });

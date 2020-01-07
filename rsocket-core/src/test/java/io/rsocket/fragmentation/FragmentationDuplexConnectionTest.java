@@ -16,7 +16,6 @@
 
 package io.rsocket.fragmentation;
 
-import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 import static org.mockito.Mockito.*;
 
@@ -56,30 +55,11 @@ final class FragmentationDuplexConnectionTest {
 
   private ByteBufAllocator allocator = ByteBufAllocator.DEFAULT;
 
-  @DisplayName("constructor throws IllegalArgumentException with negative maxFragmentLength")
-  @Test
-  void constructorInvalidMaxFragmentSize() {
-    assertThatIllegalArgumentException()
-        .isThrownBy(
-            () ->
-                new FragmentationDuplexConnection(
-                    delegate, allocator, Integer.MIN_VALUE, false, ""))
-        .withMessage("smallest allowed mtu size is 64 bytes, provided: -2147483648");
-  }
-
-  @DisplayName("constructor throws IllegalArgumentException with negative maxFragmentLength")
-  @Test
-  void constructorMtuLessThanMin() {
-    assertThatIllegalArgumentException()
-        .isThrownBy(() -> new FragmentationDuplexConnection(delegate, allocator, 2, false, ""))
-        .withMessage("smallest allowed mtu size is 64 bytes, provided: 2");
-  }
-
   @DisplayName("constructor throws NullPointerException with null byteBufAllocator")
   @Test
   void constructorNullByteBufAllocator() {
     assertThatNullPointerException()
-        .isThrownBy(() -> new FragmentationDuplexConnection(delegate, null, 64, false, ""))
+        .isThrownBy(() -> new FragmentationDuplexConnection(delegate, null))
         .withMessage("byteBufAllocator must not be null");
   }
 
@@ -87,7 +67,7 @@ final class FragmentationDuplexConnectionTest {
   @Test
   void constructorNullDelegate() {
     assertThatNullPointerException()
-        .isThrownBy(() -> new FragmentationDuplexConnection(null, allocator, 64, false, ""))
+        .isThrownBy(() -> new FragmentationDuplexConnection(null, allocator))
         .withMessage("delegate must not be null");
   }
 
@@ -120,7 +100,7 @@ final class FragmentationDuplexConnectionTest {
     when(delegate.receive()).thenReturn(Flux.fromIterable(byteBufs));
     when(delegate.onClose()).thenReturn(Mono.never());
 
-    new FragmentationDuplexConnection(delegate, allocator, 1030, false, "")
+    new FragmentationDuplexConnection(delegate, allocator)
         .receive()
         .as(StepVerifier::create)
         .assertNext(
@@ -183,7 +163,7 @@ final class FragmentationDuplexConnectionTest {
     when(delegate.receive()).thenReturn(Flux.fromIterable(byteBufs));
     when(delegate.onClose()).thenReturn(Mono.never());
 
-    new FragmentationDuplexConnection(delegate, allocator, 1030, false, "")
+    new FragmentationDuplexConnection(delegate, allocator)
         .receive()
         .as(StepVerifier::create)
         .assertNext(
@@ -251,7 +231,7 @@ final class FragmentationDuplexConnectionTest {
     when(delegate.receive()).thenReturn(Flux.fromIterable(byteBufs));
     when(delegate.onClose()).thenReturn(Mono.never());
 
-    new FragmentationDuplexConnection(delegate, allocator, 1030, false, "")
+    new FragmentationDuplexConnection(delegate, allocator)
         .receive()
         .as(StepVerifier::create)
         .assertNext(
@@ -272,7 +252,7 @@ final class FragmentationDuplexConnectionTest {
     when(delegate.receive()).thenReturn(Flux.just(encode));
     when(delegate.onClose()).thenReturn(Mono.never());
 
-    new FragmentationDuplexConnection(delegate, allocator, 1030, false, "")
+    new FragmentationDuplexConnection(delegate, allocator)
         .receive()
         .as(StepVerifier::create)
         .assertNext(
@@ -286,40 +266,17 @@ final class FragmentationDuplexConnectionTest {
   @DisplayName("does not reassemble non fragmentable frame")
   @Test
   void reassembleNonFragmentableFrame() {
-    ByteBuf encode = CancelFrameFlyweight.encode(allocator, 2);
+    ByteBuf frame = CancelFrameFlyweight.encode(allocator, 2);
 
-    when(delegate.receive()).thenReturn(Flux.just(encode));
+    when(delegate.receive()).thenReturn(Flux.just(frame));
     when(delegate.onClose()).thenReturn(Mono.never());
 
-    new FragmentationDuplexConnection(delegate, allocator, 1030, false, "")
+    new FragmentationDuplexConnection(delegate, allocator)
         .receive()
         .as(StepVerifier::create)
         .assertNext(
             byteBuf -> {
               Assert.assertEquals(FrameType.CANCEL, FrameHeaderFlyweight.frameType(byteBuf));
-            })
-        .verifyComplete();
-  }
-
-  @DisplayName("fragments data")
-  @Test
-  void sendData() {
-    ByteBuf encode =
-        RequestResponseFrameFlyweight.encode(
-            allocator, 1, false, Unpooled.EMPTY_BUFFER, Unpooled.wrappedBuffer(data));
-
-    when(delegate.onClose()).thenReturn(Mono.never());
-
-    new FragmentationDuplexConnection(delegate, allocator, 64, false, "").sendOne(encode.retain());
-
-    verify(delegate).send(publishers.capture());
-
-    StepVerifier.create(Flux.from(publishers.getValue()))
-        .expectNextCount(17)
-        .assertNext(
-            byteBuf -> {
-              Assert.assertEquals(FrameType.NEXT, FrameHeaderFlyweight.frameType(byteBuf));
-              Assert.assertFalse(FrameHeaderFlyweight.hasFollows(byteBuf));
             })
         .verifyComplete();
   }

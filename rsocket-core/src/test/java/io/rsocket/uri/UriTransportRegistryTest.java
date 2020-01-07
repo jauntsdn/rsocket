@@ -28,7 +28,7 @@ public class UriTransportRegistryTest {
   public void testTestRegistered() {
     ClientTransport test = UriTransportRegistry.clientForUri("test://test");
 
-    DuplexConnection duplexConnection = test.connect(0).block();
+    DuplexConnection duplexConnection = test.connect().block();
 
     assertTrue(duplexConnection instanceof TestDuplexConnection);
   }
@@ -37,6 +37,6 @@ public class UriTransportRegistryTest {
   public void testTestUnregistered() {
     ClientTransport test = UriTransportRegistry.clientForUri("mailto://bonson@baulsupp.net");
 
-    test.connect(0).block();
+    test.connect().block();
   }
 }
