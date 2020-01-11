@@ -465,10 +465,8 @@ class RSocketRequester implements RSocket {
                 }
                 return;
               }
-              if (s == SignalType.CANCEL) {
-                if (!receiver.isDisposed() && contains(streamId)) {
-                  sendProcessor.onNext(CancelFrameFlyweight.encode(allocator, streamId));
-                }
+              if (s == SignalType.CANCEL && contains(streamId)) {
+                sendProcessor.onNext(CancelFrameFlyweight.encode(allocator, streamId));
               }
               removeReceiverAndSender(streamId);
             });
