@@ -230,7 +230,7 @@ class RSocketRequester implements RSocket {
                 }
                 isRequestSent = true;
 
-                if (receiver.isDisposed()) {
+                if (receiver.isTerminated()) {
                   payload.release();
                   return;
                 }
@@ -258,9 +258,9 @@ class RSocketRequester implements RSocket {
               }
             })
         .doFinally(
-            s -> {
+            signalType -> {
               int streamId = stream.getId();
-              if (s == SignalType.CANCEL) {
+              if (signalType == SignalType.CANCEL && !receiver.isTerminated()) {
                 sendProcessor.onNext(CancelFrameFlyweight.encode(allocator, streamId));
               }
               removeReceiver(streamId);
@@ -321,10 +321,8 @@ class RSocketRequester implements RSocket {
                   payload.release();
                 } else {
                   final int streamId = stream.getId();
-                  if (contains(streamId)) {
-                    sendProcessor.onNext(
-                        RequestNFrameFlyweight.encode(allocator, streamId, requestN));
-                  }
+                  sendProcessor.onNext(
+                      RequestNFrameFlyweight.encode(allocator, streamId, requestN));
                 }
               }
             })
@@ -334,7 +332,7 @@ class RSocketRequester implements RSocket {
               if (streamId < 0) {
                 return;
               }
-              if (signalType == SignalType.CANCEL && contains(streamId)) {
+              if (signalType == SignalType.CANCEL && !receiver.isTerminated()) {
                 sendProcessor.onNext(CancelFrameFlyweight.encode(allocator, streamId));
               }
               removeReceiver(streamId);
@@ -359,7 +357,7 @@ class RSocketRequester implements RSocket {
               boolean isRequestSent;
 
               @Override
-              public void accept(long n) {
+              public void accept(long requestN) {
                 if (receiver.isDisposed()) {
                   return;
                 }
@@ -410,7 +408,7 @@ class RSocketRequester implements RSocket {
                                         streamId,
                                         false,
                                         false,
-                                        n,
+                                        requestN,
                                         payload.sliceMetadata().retain(),
                                         payload.sliceData().retain());
                               } else {
@@ -429,7 +427,7 @@ class RSocketRequester implements RSocket {
                               int streamId = stream.getId();
                               if (streamId < 0) {
                                 receiver.onComplete();
-                              } else if (!receiver.isDisposed() && contains(streamId)) {
+                              } else if (!receiver.isDisposed()) {
                                 sendProcessor.onNext(
                                     PayloadFrameFlyweight.encodeComplete(allocator, streamId));
                               }
@@ -447,11 +445,9 @@ class RSocketRequester implements RSocket {
                             }
                           });
                 } else {
-                  int streamId = stream.getId();
-
-                  if (!receiver.isDisposed() && contains(streamId)) {
-                    sendProcessor.onNext(RequestNFrameFlyweight.encode(allocator, streamId, n));
-                  }
+                  final int streamId = stream.getId();
+                  sendProcessor.onNext(
+                      RequestNFrameFlyweight.encode(allocator, streamId, requestN));
                 }
               }
             })
@@ -465,7 +461,7 @@ class RSocketRequester implements RSocket {
                 }
                 return;
               }
-              if (s == SignalType.CANCEL && contains(streamId)) {
+              if (s == SignalType.CANCEL && !receiver.isTerminated()) {
                 sendProcessor.onNext(CancelFrameFlyweight.encode(allocator, streamId));
               }
               removeReceiverAndSender(streamId);
@@ -519,10 +515,6 @@ class RSocketRequester implements RSocket {
       return lh.leaseError();
     }
     return null;
-  }
-
-  private boolean contains(int streamId) {
-    return receivers.containsKey(streamId);
   }
 
   private void handleIncomingFrames(ByteBuf frame) {
