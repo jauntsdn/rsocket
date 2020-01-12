@@ -32,18 +32,11 @@ public class RequestChannelFrameFlyweight {
   }
 
   public static ByteBuf encode(
-      ByteBufAllocator allocator,
-      int streamId,
-      boolean fragmentFollows,
-      boolean complete,
-      long requestN,
-      ByteBuf metadata,
-      ByteBuf data) {
+      ByteBufAllocator allocator, int streamId, long requestN, ByteBuf metadata, ByteBuf data) {
 
     int reqN = requestN > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) requestN;
 
-    return FLYWEIGHT.encode(
-        allocator, streamId, fragmentFollows, complete, false, reqN, metadata, data);
+    return FLYWEIGHT.encode(allocator, streamId, false, false, false, reqN, metadata, data);
   }
 
   public static ByteBuf data(ByteBuf byteBuf) {

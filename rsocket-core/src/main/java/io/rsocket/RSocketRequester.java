@@ -193,7 +193,6 @@ class RSocketRequester implements RSocket {
                     RequestFireAndForgetFrameFlyweight.encode(
                         allocator,
                         streamId,
-                        false,
                         payload.hasMetadata() ? payload.sliceMetadata().retain() : null,
                         payload.sliceData().retain());
                 payload.release();
@@ -249,7 +248,6 @@ class RSocketRequester implements RSocket {
                     RequestResponseFrameFlyweight.encode(
                         allocator,
                         streamId,
-                        false,
                         payload.sliceMetadata().retain(),
                         payload.sliceData().retain());
                 payload.release();
@@ -314,7 +312,6 @@ class RSocketRequester implements RSocket {
                       RequestStreamFrameFlyweight.encode(
                           allocator,
                           streamId,
-                          false,
                           requestN,
                           payload.sliceMetadata().retain(),
                           payload.sliceData().retain()));
@@ -406,16 +403,13 @@ class RSocketRequester implements RSocket {
                                     RequestChannelFrameFlyweight.encode(
                                         allocator,
                                         streamId,
-                                        false,
-                                        false,
                                         requestN,
                                         payload.sliceMetadata().retain(),
                                         payload.sliceData().retain());
                               } else {
-                                int streamId = stream.getId();
+                                final int streamId = stream.getId();
                                 frame =
-                                    PayloadFrameFlyweight.encode(
-                                        allocator, streamId, false, false, true, payload);
+                                    PayloadFrameFlyweight.encodeNext(allocator, streamId, payload);
                               }
 
                               sendProcessor.onNext(frame);

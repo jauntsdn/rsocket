@@ -126,7 +126,6 @@ class RequestFlyweightTest {
         RequestStreamFrameFlyweight.encode(
             ByteBufAllocator.DEFAULT,
             1,
-            false,
             Integer.MAX_VALUE + 1L,
             Unpooled.copiedBuffer("md", StandardCharsets.UTF_8),
             Unpooled.copiedBuffer("d", StandardCharsets.UTF_8));
@@ -194,7 +193,6 @@ class RequestFlyweightTest {
         RequestFireAndForgetFrameFlyweight.encode(
             ByteBufAllocator.DEFAULT,
             1,
-            false,
             Unpooled.copiedBuffer("md", StandardCharsets.UTF_8),
             Unpooled.copiedBuffer("d", StandardCharsets.UTF_8));
 
@@ -212,11 +210,7 @@ class RequestFlyweightTest {
   void requestFnfData() {
     ByteBuf request =
         RequestFireAndForgetFrameFlyweight.encode(
-            ByteBufAllocator.DEFAULT,
-            1,
-            false,
-            null,
-            Unpooled.copiedBuffer("d", StandardCharsets.UTF_8));
+            ByteBufAllocator.DEFAULT, 1, null, Unpooled.copiedBuffer("d", StandardCharsets.UTF_8));
 
     String data = RequestFireAndForgetFrameFlyweight.data(request).toString(StandardCharsets.UTF_8);
     ByteBuf metadata = RequestFireAndForgetFrameFlyweight.metadata(request);
@@ -233,7 +227,6 @@ class RequestFlyweightTest {
         RequestFireAndForgetFrameFlyweight.encode(
             ByteBufAllocator.DEFAULT,
             1,
-            false,
             Unpooled.copiedBuffer("md", StandardCharsets.UTF_8),
             Unpooled.EMPTY_BUFFER);
 

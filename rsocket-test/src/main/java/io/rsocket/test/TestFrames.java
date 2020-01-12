@@ -70,14 +70,12 @@ public final class TestFrames {
 
   /** @return {@link ByteBuf} representing test instance of Request-Channel frame */
   public static ByteBuf createTestRequestChannelFrame() {
-    return RequestChannelFrameFlyweight.encode(
-        allocator, 1, false, false, 1, null, Unpooled.EMPTY_BUFFER);
+    return RequestChannelFrameFlyweight.encode(allocator, 1, 1, null, Unpooled.EMPTY_BUFFER);
   }
 
   /** @return {@link ByteBuf} representing test instance of Fire-and-Forget frame */
   public static ByteBuf createTestRequestFireAndForgetFrame() {
-    return RequestFireAndForgetFrameFlyweight.encode(
-        allocator, 1, false, null, Unpooled.EMPTY_BUFFER);
+    return RequestFireAndForgetFrameFlyweight.encode(allocator, 1, null, Unpooled.EMPTY_BUFFER);
   }
 
   /** @return {@link ByteBuf} representing test instance of Request-N frame */
@@ -92,7 +90,7 @@ public final class TestFrames {
 
   /** @return {@link ByteBuf} representing test instance of Request-Stream frame */
   public static ByteBuf createTestRequestStreamFrame() {
-    return RequestStreamFrameFlyweight.encode(allocator, 1, false, 1L, emptyPayload);
+    return RequestStreamFrameFlyweight.encode(allocator, 1, 1L, emptyPayload);
   }
 
   /** @return {@link ByteBuf} representing test instance of Setup frame */

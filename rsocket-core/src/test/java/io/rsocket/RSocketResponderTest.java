@@ -163,7 +163,7 @@ public class RSocketResponderTest {
         case REQUEST_STREAM:
           request =
               RequestStreamFrameFlyweight.encode(
-                  ByteBufAllocator.DEFAULT, streamId, false, 1, EmptyPayload.INSTANCE);
+                  ByteBufAllocator.DEFAULT, streamId, 1, EmptyPayload.INSTANCE);
           break;
         case REQUEST_RESPONSE:
           request =

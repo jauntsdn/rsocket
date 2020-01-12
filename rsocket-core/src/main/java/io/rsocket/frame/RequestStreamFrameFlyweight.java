@@ -11,13 +11,8 @@ public class RequestStreamFrameFlyweight {
   private RequestStreamFrameFlyweight() {}
 
   public static ByteBuf encode(
-      ByteBufAllocator allocator,
-      int streamId,
-      boolean fragmentFollows,
-      long requestN,
-      Payload payload) {
-    return encode(
-        allocator, streamId, fragmentFollows, requestN, payload.metadata(), payload.data());
+      ByteBufAllocator allocator, int streamId, long requestN, Payload payload) {
+    return encode(allocator, streamId, requestN, payload.metadata(), payload.data());
   }
 
   public static ByteBuf encode(
@@ -31,14 +26,9 @@ public class RequestStreamFrameFlyweight {
   }
 
   public static ByteBuf encode(
-      ByteBufAllocator allocator,
-      int streamId,
-      boolean fragmentFollows,
-      long requestN,
-      ByteBuf metadata,
-      ByteBuf data) {
+      ByteBufAllocator allocator, int streamId, long requestN, ByteBuf metadata, ByteBuf data) {
     int reqN = requestN > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) requestN;
-    return encode(allocator, streamId, fragmentFollows, reqN, metadata, data);
+    return encode(allocator, streamId, false, reqN, metadata, data);
   }
 
   public static ByteBuf encode(
