@@ -140,21 +140,10 @@ public class RSocketFactory {
       plugins.addConnectionPlugin(interceptor);
       return this;
     }
-    /** Deprecated. Use {@link #addRequesterPlugin(RSocketInterceptor)} instead */
-    @Deprecated
-    public ClientRSocketFactory addClientPlugin(RSocketInterceptor interceptor) {
-      return addRequesterPlugin(interceptor);
-    }
 
     public ClientRSocketFactory addRequesterPlugin(RSocketInterceptor interceptor) {
       plugins.addRequesterPlugin(interceptor);
       return this;
-    }
-
-    /** Deprecated. Use {@link #addResponderPlugin(RSocketInterceptor)} instead */
-    @Deprecated
-    public ClientRSocketFactory addServerPlugin(RSocketInterceptor interceptor) {
-      return addResponderPlugin(interceptor);
     }
 
     public ClientRSocketFactory addResponderPlugin(RSocketInterceptor interceptor) {
@@ -488,21 +477,10 @@ public class RSocketFactory {
       plugins.addConnectionPlugin(interceptor);
       return this;
     }
-    /** Deprecated. Use {@link #addRequesterPlugin(RSocketInterceptor)} instead */
-    @Deprecated
-    public ServerRSocketFactory addClientPlugin(RSocketInterceptor interceptor) {
-      return addRequesterPlugin(interceptor);
-    }
 
     public ServerRSocketFactory addRequesterPlugin(RSocketInterceptor interceptor) {
       plugins.addRequesterPlugin(interceptor);
       return this;
-    }
-
-    /** Deprecated. Use {@link #addResponderPlugin(RSocketInterceptor)} instead */
-    @Deprecated
-    public ServerRSocketFactory addServerPlugin(RSocketInterceptor interceptor) {
-      return addResponderPlugin(interceptor);
     }
 
     public ServerRSocketFactory addResponderPlugin(RSocketInterceptor interceptor) {

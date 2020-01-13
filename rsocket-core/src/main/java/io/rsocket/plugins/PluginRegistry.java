@@ -40,20 +40,8 @@ public class PluginRegistry {
     connections.add(interceptor);
   }
 
-  /** Deprecated. Use {@link #addRequesterPlugin(RSocketInterceptor)} instead */
-  @Deprecated
-  public void addClientPlugin(RSocketInterceptor interceptor) {
-    addRequesterPlugin(interceptor);
-  }
-
   public void addRequesterPlugin(RSocketInterceptor interceptor) {
     requesters.add(interceptor);
-  }
-
-  /** Deprecated. Use {@link #addResponderPlugin(RSocketInterceptor)} instead */
-  @Deprecated
-  public void addServerPlugin(RSocketInterceptor interceptor) {
-    addResponderPlugin(interceptor);
   }
 
   public void addResponderPlugin(RSocketInterceptor interceptor) {
@@ -64,24 +52,12 @@ public class PluginRegistry {
     socketAcceptorInterceptors.add(interceptor);
   }
 
-  /** Deprecated. Use {@link #applyRequester(RSocket)} instead */
-  @Deprecated
-  public RSocket applyClient(RSocket rSocket) {
-    return applyRequester(rSocket);
-  }
-
   public RSocket applyRequester(RSocket rSocket) {
     for (RSocketInterceptor i : requesters) {
       rSocket = i.apply(rSocket);
     }
 
     return rSocket;
-  }
-
-  /** Deprecated. Use {@link #applyResponder(RSocket)} instead */
-  @Deprecated
-  public RSocket applyServer(RSocket rSocket) {
-    return applyResponder(rSocket);
   }
 
   public RSocket applyResponder(RSocket rSocket) {
