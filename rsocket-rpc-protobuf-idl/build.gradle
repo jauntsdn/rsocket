@@ -1,0 +1,22 @@
+plugins {
+    id 'java-library'
+    id 'com.google.protobuf'
+}
+
+description = 'RSocket RPC Protobf IDL'
+
+protobuf {
+    generateProtoTasks {
+        all().each { task ->
+            task.enabled = false
+
+            task.builtins {
+                // Generates C++ code in the output folder:
+                cpp { }
+
+                // Avoid generating Java files:
+                remove java
+            }
+        }
+    }
+}
