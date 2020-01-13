@@ -95,6 +95,7 @@ public class RSocketFactory {
 
   public static class ClientRSocketFactory implements ClientTransportAcceptor {
     private static final String CLIENT_TAG = "client";
+    private static final int KEEPALIVE_MIN_INTERVAL_MILLIS = 100;
 
     private SocketAcceptor acceptor = (setup, sendingSocket) -> Mono.just(new AbstractRSocket() {});
 
@@ -105,9 +106,8 @@ public class RSocketFactory {
     private Payload setupPayload = EmptyPayload.INSTANCE;
     private PayloadDecoder payloadDecoder = PayloadDecoder.DEFAULT;
 
-    private Duration tickPeriod = Duration.ofSeconds(20);
-    private Duration ackTimeout = Duration.ofSeconds(30);
-    private int missedAcks = 3;
+    private Duration tickPeriod = Duration.ofSeconds(15);
+    private Duration ackTimeout = Duration.ofSeconds(90);
 
     private String metadataMimeType = "application/binary";
     private String dataMimeType = "application/binary";
@@ -167,21 +167,9 @@ public class RSocketFactory {
       return this;
     }
 
-    /**
-     * Deprecated as Keep-Alive is not optional according to spec
-     *
-     * @return this ClientRSocketFactory
-     */
-    @Deprecated
-    public ClientRSocketFactory keepAlive() {
-      return this;
-    }
-
-    public ClientRSocketFactory keepAlive(
-        Duration tickPeriod, Duration ackTimeout, int missedAcks) {
+    public ClientRSocketFactory keepAlive(Duration tickPeriod, Duration ackTimeout) {
       this.tickPeriod = tickPeriod;
       this.ackTimeout = ackTimeout;
-      this.missedAcks = missedAcks;
       return this;
     }
 
@@ -192,11 +180,6 @@ public class RSocketFactory {
 
     public ClientRSocketFactory keepAliveAckTimeout(Duration ackTimeout) {
       this.ackTimeout = ackTimeout;
-      return this;
-    }
-
-    public ClientRSocketFactory keepAliveMissedAcks(int missedAcks) {
-      this.missedAcks = missedAcks;
       return this;
     }
 
@@ -308,9 +291,13 @@ public class RSocketFactory {
 
     private class StartClient implements Start<RSocket> {
       private final Supplier<ClientTransport> transportClient;
+      private final int keepAliveTickPeriod;
+      private final int keepAliveTimeout;
 
       StartClient(Supplier<ClientTransport> transportClient) {
         this.transportClient = transportClient;
+        this.keepAliveTickPeriod = keepAliveTickPeriod();
+        this.keepAliveTimeout = keepAliveTimeout();
       }
 
       @Override
@@ -337,6 +324,9 @@ public class RSocketFactory {
                           ? new RequesterLeaseHandler.Impl(CLIENT_TAG, leases.receiver())
                           : RequesterLeaseHandler.None;
 
+                  final int keepAliveTimeout = this.keepAliveTimeout;
+                  final int keepAliveTickPeriod = this.keepAliveTickPeriod;
+
                   RSocket rSocketRequester =
                       new RSocketRequester(
                           allocator,
@@ -344,8 +334,8 @@ public class RSocketFactory {
                           payloadDecoder,
                           errorConsumer,
                           StreamIdSupplier.clientSupplier(),
-                          keepAliveTickPeriod(),
-                          keepAliveTimeout(),
+                          keepAliveTickPeriod,
+                          keepAliveTimeout,
                           keepAliveHandler,
                           requesterLeaseHandler);
 
@@ -359,8 +349,8 @@ public class RSocketFactory {
                       SetupFrameFlyweight.encode(
                           allocator,
                           isLeaseEnabled,
-                          keepAliveTickPeriod(),
-                          keepAliveTimeout(),
+                          keepAliveTickPeriod,
+                          keepAliveTimeout,
                           resumeToken,
                           metadataMimeType,
                           dataMimeType,
@@ -402,11 +392,30 @@ public class RSocketFactory {
       }
 
       private int keepAliveTickPeriod() {
-        return (int) tickPeriod.toMillis();
+        long interval = tickPeriod.toMillis();
+        if (interval > Integer.MAX_VALUE) {
+          throw new IllegalArgumentException(
+              String.format("keep-alive interval millis exceeds INTEGER.MAX_VALUE: %d", interval));
+        }
+
+        int minInterval = KEEPALIVE_MIN_INTERVAL_MILLIS;
+        if (interval < minInterval) {
+          throw new IllegalArgumentException(
+              String.format(
+                  "keep-alive interval millis is less than minimum of %d: %d",
+                  minInterval, interval));
+        }
+
+        return (int) interval;
       }
 
       private int keepAliveTimeout() {
-        return (int) (ackTimeout.toMillis() + tickPeriod.toMillis() * missedAcks);
+        long timeout = ackTimeout.toMillis();
+        if (timeout > Integer.MAX_VALUE) {
+          throw new IllegalArgumentException(
+              String.format("keep-alive timeout millis exceeds INTEGER.MAX_VALUE: %d", timeout));
+        }
+        return (int) timeout;
       }
 
       private ClientSetup clientSetup(DuplexConnection startConnection) {
@@ -657,7 +666,7 @@ public class RSocketFactory {
                       payloadDecoder,
                       errorConsumer,
                       StreamIdSupplier.serverSupplier(),
-                      setupPayload.keepAliveInterval(),
+                      0,
                       setupPayload.keepAliveMaxLifetime(),
                       keepAliveHandler,
                       requesterLeaseHandler);

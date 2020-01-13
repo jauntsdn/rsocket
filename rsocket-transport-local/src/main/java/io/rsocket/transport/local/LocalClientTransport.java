@@ -23,8 +23,10 @@ import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.ServerTransport;
 import io.rsocket.transport.local.LocalServerTransport.ServerDuplexConnectionAcceptor;
 import java.util.Objects;
+import javax.annotation.Nullable;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
+import reactor.core.scheduler.Scheduler;
 
 /**
  * An implementation of {@link ClientTransport} that connects to a {@link ServerTransport} in the
@@ -33,9 +35,11 @@ import reactor.core.publisher.MonoProcessor;
 public final class LocalClientTransport implements ClientTransport {
 
   private final String name;
+  private final Scheduler scheduler;
 
-  private LocalClientTransport(String name) {
+  private LocalClientTransport(String name, @Nullable Scheduler scheduler) {
     this.name = name;
+    this.scheduler = scheduler;
   }
 
   /**
@@ -46,7 +50,19 @@ public final class LocalClientTransport implements ClientTransport {
    * @throws NullPointerException if {@code name} is {@code null}
    */
   public static LocalClientTransport create(String name) {
-    return new LocalClientTransport(Objects.requireNonNull(name, "name must not be null"));
+    return new LocalClientTransport(Objects.requireNonNull(name, "name must not be null"), null);
+  }
+
+  /**
+   * Creates a new instance.
+   *
+   * @param name the name of the {@link ServerTransport} instance to connect to
+   * @return a new instance
+   * @throws NullPointerException if {@code name} is {@code null}
+   */
+  public static LocalClientTransport create(String name, Scheduler scheduler) {
+    return new LocalClientTransport(
+        Objects.requireNonNull(name, "name must not be null"), scheduler);
   }
 
   @Override
@@ -61,10 +77,14 @@ public final class LocalClientTransport implements ClientTransport {
           UnboundedProcessor<ByteBuf> in = new UnboundedProcessor<>();
           UnboundedProcessor<ByteBuf> out = new UnboundedProcessor<>();
           MonoProcessor<Void> closeNotifier = MonoProcessor.create();
-
-          server.accept(new LocalDuplexConnection(out, in, closeNotifier));
-
-          return Mono.just((DuplexConnection) new LocalDuplexConnection(in, out, closeNotifier));
+          Scheduler scheduler = this.scheduler;
+          if (scheduler != null) {
+            server.accept(new LocalDuplexConnection(out, in, closeNotifier, scheduler));
+            return Mono.just(new LocalDuplexConnection(in, out, closeNotifier, scheduler));
+          } else {
+            server.accept(new LocalDuplexConnection(out, in, closeNotifier));
+            return Mono.just(new LocalDuplexConnection(in, out, closeNotifier));
+          }
         });
   }
 }

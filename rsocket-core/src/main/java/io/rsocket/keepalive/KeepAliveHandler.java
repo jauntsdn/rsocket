@@ -2,16 +2,12 @@ package io.rsocket.keepalive;
 
 import io.netty.buffer.ByteBuf;
 import io.rsocket.Closeable;
-import io.rsocket.keepalive.KeepAliveSupport.KeepAlive;
 import io.rsocket.resume.ResumableDuplexConnection;
 import java.util.function.Consumer;
 
 public interface KeepAliveHandler {
 
-  KeepAliveFramesAcceptor start(
-      KeepAliveSupport keepAliveSupport,
-      Consumer<ByteBuf> onFrameSent,
-      Consumer<KeepAlive> onTimeout);
+  Consumer<ByteBuf> start(KeepAlive keepAlive, Runnable onTimeout);
 
   class DefaultKeepAliveHandler implements KeepAliveHandler {
     private final Closeable duplexConnection;
@@ -21,15 +17,9 @@ public interface KeepAliveHandler {
     }
 
     @Override
-    public KeepAliveFramesAcceptor start(
-        KeepAliveSupport keepAliveSupport,
-        Consumer<ByteBuf> onSendKeepAliveFrame,
-        Consumer<KeepAlive> onTimeout) {
-      duplexConnection.onClose().doFinally(s -> keepAliveSupport.stop()).subscribe();
-      return keepAliveSupport
-          .onSendKeepAliveFrame(onSendKeepAliveFrame)
-          .onTimeout(onTimeout)
-          .start();
+    public Consumer<ByteBuf> start(KeepAlive keepAlive, Runnable onTimeout) {
+      duplexConnection.onClose().doFinally(s -> keepAlive.stop()).subscribe();
+      return keepAlive.onTimeout(onTimeout).start();
     }
   }
 
@@ -41,16 +31,12 @@ public interface KeepAliveHandler {
     }
 
     @Override
-    public KeepAliveFramesAcceptor start(
-        KeepAliveSupport keepAliveSupport,
-        Consumer<ByteBuf> onSendKeepAliveFrame,
-        Consumer<KeepAlive> onTimeout) {
-      resumableDuplexConnection.onResume(keepAliveSupport::start);
-      resumableDuplexConnection.onDisconnect(keepAliveSupport::stop);
-      return keepAliveSupport
+    public Consumer<ByteBuf> start(KeepAlive keepAlive, Runnable onTimeout) {
+      resumableDuplexConnection.onResume(keepAlive::start);
+      resumableDuplexConnection.onDisconnect(keepAlive::stop);
+      return keepAlive
           .resumeState(resumableDuplexConnection)
-          .onSendKeepAliveFrame(onSendKeepAliveFrame)
-          .onTimeout(keepAlive -> resumableDuplexConnection.disconnect())
+          .onTimeout(resumableDuplexConnection::disconnect)
           .start();
     }
   }

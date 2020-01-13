@@ -24,6 +24,7 @@ import org.junit.rules.ExternalResource;
 import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
 import org.reactivestreams.Subscriber;
+import reactor.core.scheduler.Schedulers;
 
 public abstract class AbstractSocketRule<T extends RSocket> extends ExternalResource {
 
@@ -37,7 +38,7 @@ public abstract class AbstractSocketRule<T extends RSocket> extends ExternalReso
     return new Statement() {
       @Override
       public void evaluate() throws Throwable {
-        connection = new TestDuplexConnection();
+        connection = new TestDuplexConnection(Schedulers.single());
         connectSub = TestSubscriber.create();
         errors = new ConcurrentLinkedQueue<>();
         init();

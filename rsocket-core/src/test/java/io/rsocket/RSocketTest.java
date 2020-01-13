@@ -18,18 +18,17 @@ package io.rsocket;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.verify;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.exceptions.ApplicationErrorException;
+import io.rsocket.keepalive.KeepAliveHandler;
 import io.rsocket.lease.RequesterLeaseHandler;
 import io.rsocket.lease.ResponderLeaseHandler;
 import io.rsocket.test.util.LocalDuplexConnection;
-import io.rsocket.test.util.TestSubscriber;
 import io.rsocket.util.DefaultPayload;
 import io.rsocket.util.EmptyPayload;
+import java.time.Duration;
 import java.util.ArrayList;
 import org.hamcrest.MatcherAssert;
 import org.junit.Assert;
@@ -39,10 +38,11 @@ import org.junit.rules.ExternalResource;
 import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
 import org.reactivestreams.Publisher;
-import org.reactivestreams.Subscriber;
 import reactor.core.publisher.DirectProcessor;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Scheduler;
+import reactor.core.scheduler.Schedulers;
 import reactor.test.StepVerifier;
 
 public class RSocketTest {
@@ -76,9 +76,9 @@ public class RSocketTest {
             return Mono.error(new NullPointerException("Deliberate exception."));
           }
         });
-    Subscriber<Payload> subscriber = TestSubscriber.create();
-    rule.crs.requestResponse(EmptyPayload.INSTANCE).subscribe(subscriber);
-    verify(subscriber).onError(any(ApplicationErrorException.class));
+    StepVerifier.create(rule.crs.requestResponse(EmptyPayload.INSTANCE))
+        .expectError(ApplicationErrorException.class)
+        .verify(Duration.ofMillis(2000));
 
     // Client sees error through normal API
     rule.assertNoClientErrors();
@@ -126,10 +126,11 @@ public class RSocketTest {
       serverProcessor = DirectProcessor.create();
       clientProcessor = DirectProcessor.create();
 
+      Scheduler scheduler = Schedulers.single();
       LocalDuplexConnection serverConnection =
-          new LocalDuplexConnection("server", clientProcessor, serverProcessor);
+          new LocalDuplexConnection("server", clientProcessor, serverProcessor, scheduler);
       LocalDuplexConnection clientConnection =
-          new LocalDuplexConnection("client", serverProcessor, clientProcessor);
+          new LocalDuplexConnection("client", serverProcessor, clientProcessor, scheduler);
 
       requestAcceptor =
           null != requestAcceptor
@@ -178,9 +179,9 @@ public class RSocketTest {
               DefaultPayload::create,
               throwable -> clientErrors.add(throwable),
               StreamIdSupplier.clientSupplier(),
-              0,
-              0,
-              null,
+              100_000,
+              100_000,
+              new KeepAliveHandler.DefaultKeepAliveHandler(clientConnection),
               RequesterLeaseHandler.None);
     }
 

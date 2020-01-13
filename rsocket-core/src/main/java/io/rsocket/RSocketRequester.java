@@ -16,8 +16,7 @@
 
 package io.rsocket;
 
-import static io.rsocket.keepalive.KeepAliveSupport.ClientKeepAliveSupport;
-import static io.rsocket.keepalive.KeepAliveSupport.KeepAlive;
+import static io.rsocket.keepalive.KeepAlive.ClientKeepAlive;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
@@ -29,16 +28,15 @@ import io.rsocket.frame.*;
 import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.internal.SynchronizedIntObjectHashMap;
 import io.rsocket.internal.UnboundedProcessor;
-import io.rsocket.keepalive.KeepAliveFramesAcceptor;
+import io.rsocket.keepalive.KeepAlive;
+import io.rsocket.keepalive.KeepAlive.ServerKeepAlive;
 import io.rsocket.keepalive.KeepAliveHandler;
-import io.rsocket.keepalive.KeepAliveSupport;
 import io.rsocket.lease.RequesterLeaseHandler;
 import java.nio.channels.ClosedChannelException;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import org.reactivestreams.Processor;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
@@ -68,7 +66,7 @@ class RSocketRequester implements RSocket {
   private final UnboundedProcessor<ByteBuf> sendProcessor;
   private final RequesterLeaseHandler leaseHandler;
   private final ByteBufAllocator allocator;
-  private final KeepAliveFramesAcceptor keepAliveFramesAcceptor;
+  private final Consumer<ByteBuf> keepAliveFramesAcceptor;
   private final Scheduler transportScheduler;
   private volatile Throwable terminationError;
 
@@ -80,7 +78,7 @@ class RSocketRequester implements RSocket {
       StreamIdSupplier streamIdSupplier,
       int keepAliveTickPeriod,
       int keepAliveAckTimeout,
-      @Nullable KeepAliveHandler keepAliveHandler,
+      KeepAliveHandler keepAliveHandler,
       RequesterLeaseHandler leaseHandler) {
     this.allocator = allocator;
     this.connection = connection;
@@ -102,18 +100,21 @@ class RSocketRequester implements RSocket {
     connection.send(sendProcessor).subscribe(null, this::handleSendProcessorError);
 
     connection.receive().subscribe(this::handleIncomingFrames, errorConsumer);
-
-    if (keepAliveTickPeriod != 0 && keepAliveHandler != null) {
-      KeepAliveSupport keepAliveSupport =
-          new ClientKeepAliveSupport(allocator, keepAliveTickPeriod, keepAliveAckTimeout);
-      this.keepAliveFramesAcceptor =
-          keepAliveHandler.start(
-              keepAliveSupport,
-              keepAliveFrame -> sendProcessor.onNext(keepAliveFrame),
-              keepAliveTimeout -> tryTerminate(keepAliveTimeout));
-    } else {
-      keepAliveFramesAcceptor = null;
-    }
+    KeepAlive keepAlive =
+        keepAliveTickPeriod != 0
+            ? new ClientKeepAlive(
+                transportScheduler,
+                allocator,
+                keepAliveTickPeriod,
+                keepAliveAckTimeout,
+                keepAliveFrame -> sendProcessor.onNext(keepAliveFrame))
+            : new ServerKeepAlive(
+                transportScheduler,
+                allocator,
+                keepAliveAckTimeout,
+                keepAliveFrame -> sendProcessor.onNext(keepAliveFrame));
+    this.keepAliveFramesAcceptor =
+        keepAliveHandler.start(keepAlive, () -> tryTerminate(keepAliveAckTimeout));
   }
 
   @Override
@@ -536,9 +537,7 @@ class RSocketRequester implements RSocket {
         leaseHandler.receive(frame);
         break;
       case KEEPALIVE:
-        if (keepAliveFramesAcceptor != null) {
-          keepAliveFramesAcceptor.receive(frame);
-        }
+        keepAliveFramesAcceptor.accept(frame);
         break;
       default:
         // Ignore unknown frames. Throwing an error will close the socket.
@@ -617,34 +616,32 @@ class RSocketRequester implements RSocket {
     // so ignore (cancellation is async so there is a race condition)
   }
 
-  /*error is (KeepAlive | ClosedChannelException (dispose) | Error frame (0 error)) */
+  /*error is (int (KeepAlive timeout) | ClosedChannelException (dispose) | Error frame (0 error)) */
+  /*no race because executed on transport scheduler */
   private void tryTerminate(Object error) {
     if (terminationError == null) {
       Exception e;
       if (error instanceof ClosedChannelException) {
         e = (Exception) error;
-      } else if (error instanceof KeepAlive) {
-        KeepAlive keepAlive = (KeepAlive) error;
+      } else if (error instanceof Integer) {
+        Integer keepAliveTimeout = (Integer) error;
         e =
             new ConnectionErrorException(
-                String.format("No keep-alive acks for %d ms", keepAlive.getTimeout().toMillis()));
+                String.format("No keep-alive acks for %d ms", keepAliveTimeout));
       } else if (error instanceof ByteBuf) {
         ByteBuf errorFrame = (ByteBuf) error;
         e = Exceptions.from(errorFrame);
       } else {
         e = new IllegalStateException("Unknown termination token: " + error);
       }
-      if (TERMINATION_ERROR.compareAndSet(this, null, e)) {
-        transportScheduler.schedule(this::terminate);
-      }
+      this.terminationError = e;
+      terminate(e);
     }
   }
 
-  private void terminate() {
+  private void terminate(Exception e) {
     connection.dispose();
     leaseHandler.dispose();
-
-    Throwable e = this.terminationError;
 
     synchronized (receivers) {
       receivers

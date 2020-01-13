@@ -40,6 +40,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 import reactor.test.StepVerifier;
 
 public class KeepAliveTest {
@@ -51,7 +52,7 @@ public class KeepAliveTest {
   private ResumableRSocketState resumableRequesterState;
 
   static RSocketState requester(int tickPeriod, int timeout) {
-    TestDuplexConnection connection = new TestDuplexConnection();
+    TestDuplexConnection connection = new TestDuplexConnection(Schedulers.single());
     Errors errors = new Errors();
     RSocketRequester rSocket =
         new RSocketRequester(
@@ -68,7 +69,7 @@ public class KeepAliveTest {
   }
 
   static ResumableRSocketState resumableRequester(int tickPeriod, int timeout) {
-    TestDuplexConnection connection = new TestDuplexConnection();
+    TestDuplexConnection connection = new TestDuplexConnection(Schedulers.single());
     ResumableDuplexConnection resumableConnection =
         new ResumableDuplexConnection(
             "test",

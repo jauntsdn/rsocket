@@ -28,6 +28,7 @@ import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.exceptions.ApplicationErrorException;
 import io.rsocket.exceptions.RejectedSetupException;
 import io.rsocket.frame.*;
+import io.rsocket.keepalive.KeepAliveHandler;
 import io.rsocket.lease.RequesterLeaseHandler;
 import io.rsocket.test.util.TestSubscriber;
 import io.rsocket.util.DefaultPayload;
@@ -235,9 +236,9 @@ public class RSocketRequesterTest {
           DefaultPayload::create,
           throwable -> errors.add(throwable),
           StreamIdSupplier.clientSupplier(),
-          0,
-          0,
-          null,
+          100_000,
+          100_000,
+          new KeepAliveHandler.DefaultKeepAliveHandler(connection),
           RequesterLeaseHandler.None);
     }
 

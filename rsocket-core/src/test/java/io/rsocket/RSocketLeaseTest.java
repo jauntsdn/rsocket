@@ -33,6 +33,7 @@ import io.rsocket.frame.LeaseFrameFlyweight;
 import io.rsocket.frame.SetupFrameFlyweight;
 import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.internal.ClientServerInputMultiplexer;
+import io.rsocket.keepalive.KeepAliveHandler;
 import io.rsocket.lease.*;
 import io.rsocket.plugins.PluginRegistry;
 import io.rsocket.test.util.TestClientTransport;
@@ -56,6 +57,7 @@ import org.reactivestreams.Publisher;
 import reactor.core.publisher.EmitterProcessor;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 import reactor.test.StepVerifier;
 
 class RSocketLeaseTest {
@@ -73,7 +75,7 @@ class RSocketLeaseTest {
 
   @BeforeEach
   void setUp() {
-    connection = new TestDuplexConnection();
+    connection = new TestDuplexConnection(Schedulers.single());
     PayloadDecoder payloadDecoder = PayloadDecoder.DEFAULT;
     byteBufAllocator = UnpooledByteBufAllocator.DEFAULT;
 
@@ -91,9 +93,9 @@ class RSocketLeaseTest {
             payloadDecoder,
             err -> {},
             StreamIdSupplier.clientSupplier(),
-            0,
-            0,
-            null,
+            100_000,
+            100_000,
+            new KeepAliveHandler.DefaultKeepAliveHandler(connection),
             requesterLeaseHandler);
 
     RSocket mockRSocketHandler = mock(RSocket.class);
@@ -146,7 +148,7 @@ class RSocketLeaseTest {
 
   @Test
   public void clientRSocketFactorySetsLeaseFlag() {
-    TestClientTransport clientTransport = new TestClientTransport();
+    TestClientTransport clientTransport = new TestClientTransport(Schedulers.single());
     RSocketFactory.connect().lease().transport(clientTransport).start().block();
 
     Collection<ByteBuf> sent = clientTransport.testConnection().getSent();

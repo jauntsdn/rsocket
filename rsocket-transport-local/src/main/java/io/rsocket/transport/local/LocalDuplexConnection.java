@@ -98,6 +98,6 @@ final class LocalDuplexConnection implements DuplexConnection {
   }
 
   private static class ConnectionScheduler {
-    static final Scheduler DEFAULT = Schedulers.immediate();
+    static final Scheduler DEFAULT = Schedulers.single();
   }
 }

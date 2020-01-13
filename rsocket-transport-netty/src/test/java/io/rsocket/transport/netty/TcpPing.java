@@ -88,7 +88,7 @@ public final class TcpPing {
     Mono<RSocket> rSocket =
         clientRSocketFactory
             .frameDecoder(PayloadDecoder.ZERO_COPY)
-            .keepAlive(Duration.ofMinutes(1), Duration.ofMinutes(30), 3)
+            .keepAlive(Duration.ofMinutes(1), Duration.ofMinutes(30))
             .transport(TcpClientTransport.create(port))
             .start();
 

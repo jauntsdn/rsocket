@@ -11,6 +11,7 @@ import io.rsocket.frame.ErrorFrameFlyweight;
 import io.rsocket.frame.FrameHeaderFlyweight;
 import io.rsocket.frame.FrameType;
 import io.rsocket.frame.SetupFrameFlyweight;
+import io.rsocket.keepalive.KeepAliveHandler;
 import io.rsocket.lease.RequesterLeaseHandler;
 import io.rsocket.test.util.TestDuplexConnection;
 import io.rsocket.transport.ServerTransport;
@@ -21,6 +22,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.UnicastProcessor;
+import reactor.core.scheduler.Schedulers;
 import reactor.test.StepVerifier;
 
 public class SetupRejectionTest {
@@ -46,7 +48,7 @@ public class SetupRejectionTest {
 
   @Test
   void requesterStreamsTerminatedOnZeroErrorFrame() {
-    TestDuplexConnection conn = new TestDuplexConnection();
+    TestDuplexConnection conn = new TestDuplexConnection(Schedulers.single());
     List<Throwable> errors = new ArrayList<>();
     RSocketRequester rSocket =
         new RSocketRequester(
@@ -55,9 +57,9 @@ public class SetupRejectionTest {
             DefaultPayload::create,
             errors::add,
             StreamIdSupplier.clientSupplier(),
-            0,
-            0,
-            null,
+            100_000,
+            100_000,
+            new KeepAliveHandler.DefaultKeepAliveHandler(conn),
             RequesterLeaseHandler.None);
 
     String errorMsg = "error";
@@ -82,7 +84,7 @@ public class SetupRejectionTest {
 
   @Test
   void requesterNewStreamsTerminatedAfterZeroErrorFrame() {
-    TestDuplexConnection conn = new TestDuplexConnection();
+    TestDuplexConnection conn = new TestDuplexConnection(Schedulers.single());
     RSocketRequester rSocket =
         new RSocketRequester(
             ByteBufAllocator.DEFAULT,
@@ -90,9 +92,9 @@ public class SetupRejectionTest {
             DefaultPayload::create,
             err -> {},
             StreamIdSupplier.clientSupplier(),
-            0,
-            0,
-            null,
+            100_000,
+            100_000,
+            new KeepAliveHandler.DefaultKeepAliveHandler(conn),
             RequesterLeaseHandler.None);
 
     conn.addToReceivedBuffer(
@@ -129,7 +131,7 @@ public class SetupRejectionTest {
 
   private static class SingleConnectionTransport implements ServerTransport<TestCloseable> {
 
-    private final TestDuplexConnection conn = new TestDuplexConnection();
+    private final TestDuplexConnection conn = new TestDuplexConnection(Schedulers.single());
 
     @Override
     public Mono<TestCloseable> start(ConnectionAcceptor acceptor) {

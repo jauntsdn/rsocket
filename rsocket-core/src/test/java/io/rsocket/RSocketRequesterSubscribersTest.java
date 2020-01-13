@@ -21,6 +21,7 @@ import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.frame.FrameHeaderFlyweight;
 import io.rsocket.frame.FrameType;
 import io.rsocket.frame.decoder.PayloadDecoder;
+import io.rsocket.keepalive.KeepAliveHandler;
 import io.rsocket.lease.RequesterLeaseHandler;
 import io.rsocket.test.util.TestDuplexConnection;
 import io.rsocket.util.DefaultPayload;
@@ -39,6 +40,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 import reactor.test.StepVerifier;
 
 class RSocketRequesterSubscribersTest {
@@ -57,7 +59,7 @@ class RSocketRequesterSubscribersTest {
 
   @BeforeEach
   void setUp() {
-    connection = new TestDuplexConnection();
+    connection = new TestDuplexConnection(Schedulers.single());
     rSocketRequester =
         new RSocketRequester(
             ByteBufAllocator.DEFAULT,
@@ -65,9 +67,9 @@ class RSocketRequesterSubscribersTest {
             PayloadDecoder.DEFAULT,
             err -> {},
             StreamIdSupplier.clientSupplier(),
-            0,
-            0,
-            null,
+            100_000,
+            100_000,
+            new KeepAliveHandler.DefaultKeepAliveHandler(connection),
             RequesterLeaseHandler.None);
   }
 

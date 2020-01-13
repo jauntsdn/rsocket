@@ -51,15 +51,21 @@ public class TestDuplexConnection implements DuplexConnection {
   private final ConcurrentLinkedQueue<Subscriber<ByteBuf>> sendSubscribers;
   private volatile double availability = 1;
   private volatile int initialSendRequestN = Integer.MAX_VALUE;
+  private final Scheduler scheduler;
 
   public TestDuplexConnection() {
-    sent = new LinkedBlockingQueue<>();
-    received = DirectProcessor.create();
-    receivedSink = received.sink();
-    sentPublisher = DirectProcessor.create();
-    sendSink = sentPublisher.sink();
-    sendSubscribers = new ConcurrentLinkedQueue<>();
-    onClose = MonoProcessor.create();
+    this(ConnectionScheduler.DEFAULT);
+  }
+
+  public TestDuplexConnection(Scheduler scheduler) {
+    this.scheduler = scheduler;
+    this.sent = new LinkedBlockingQueue<>();
+    this.received = DirectProcessor.create();
+    this.receivedSink = received.sink();
+    this.sentPublisher = DirectProcessor.create();
+    this.sendSink = sentPublisher.sink();
+    this.sendSubscribers = new ConcurrentLinkedQueue<>();
+    this.onClose = MonoProcessor.create();
   }
 
   @Override
@@ -93,7 +99,7 @@ public class TestDuplexConnection implements DuplexConnection {
 
   @Override
   public Scheduler scheduler() {
-    return ConnectionScheduler.DEFAULT;
+    return scheduler;
   }
 
   @Override
@@ -120,7 +126,14 @@ public class TestDuplexConnection implements DuplexConnection {
   }
 
   public Collection<ByteBuf> getSent() {
-    return sent;
+    CountDownLatch latch = new CountDownLatch(1);
+    scheduler.schedule(latch::countDown);
+    try {
+      latch.await();
+      return sent;
+    } catch (InterruptedException e) {
+      throw new RuntimeException(e);
+    }
   }
 
   public Publisher<ByteBuf> getSentAsPublisher() {
