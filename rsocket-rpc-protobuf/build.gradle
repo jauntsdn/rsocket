@@ -1,6 +1,6 @@
 plugins {
 	id 'java-library'
-	id 'com.google.osdetector'
+	id 'com.google.osdetector' version '1.4.0'
 	id 'cpp'
 }
 
