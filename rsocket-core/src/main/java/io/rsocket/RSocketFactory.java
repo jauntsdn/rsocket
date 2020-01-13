@@ -206,17 +206,29 @@ public class RSocketFactory {
     }
 
     public ClientRSocketFactory lease() {
-      this.leaseEnabled = true;
+      return lease(true);
+    }
+
+    public ClientRSocketFactory lease(boolean leaseEnabled) {
+      this.leaseEnabled = leaseEnabled;
       return this;
     }
 
     public ClientRSocketFactory singleSubscriberRequester() {
-      this.multiSubscriberRequester = false;
+      return singleSubscriberRequester(true);
+    }
+
+    public ClientRSocketFactory singleSubscriberRequester(boolean singleSubscriberRequester) {
+      this.multiSubscriberRequester = !singleSubscriberRequester;
       return this;
     }
 
     public ClientRSocketFactory resume() {
-      this.resumeEnabled = true;
+      return resume(true);
+    }
+
+    public ClientRSocketFactory resume(boolean resumeEnabled) {
+      this.resumeEnabled = resumeEnabled;
       return this;
     }
 
