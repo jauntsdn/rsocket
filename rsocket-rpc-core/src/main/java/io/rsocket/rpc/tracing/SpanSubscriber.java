@@ -50,13 +50,13 @@ final class SpanSubscriber<T> extends AtomicBoolean implements SpanSubscription<
   private Subscription s;
 
   SpanSubscriber(
-      Subscriber<? super T> subscriber,
-      Context ctx,
-      Tracer tracer,
-      Map<String, String> tracingMetadata,
-      SpanContext spanContext,
-      String name,
-      Tag... tags) {
+          Subscriber<? super T> subscriber,
+          Context ctx,
+          Tracer tracer,
+          Map<String, String> tracingMetadata,
+          SpanContext spanContext,
+          String name,
+          Tag... tags) {
     this.subscriber = subscriber;
     this.tracer = tracer;
     this.rootSpan = null;
@@ -72,27 +72,27 @@ final class SpanSubscriber<T> extends AtomicBoolean implements SpanSubscription<
 
     if (tracingMetadata != null) {
       TextMapInjectAdapter adapter = new TextMapInjectAdapter(tracingMetadata);
-      tracer.inject(span.context(), Format.Builtin.TEXT_MAP, adapter);
+      tracer.inject(span.context(), Format.Builtin.TEXT_MAP_INJECT, adapter);
     }
 
     if (log.isTraceEnabled()) {
       log.trace(
-          "Created span [{}], with name [{}], child of [{}]",
-          this.span,
-          name,
-          spanContext.toString());
+              "Created span [{}], with name [{}], child of [{}]",
+              this.span,
+              name,
+              spanContext.toString());
     }
 
     this.context = ctx.put(Span.class, this.span);
   }
 
   SpanSubscriber(
-      Subscriber<? super T> subscriber,
-      Context ctx,
-      Tracer tracer,
-      Map<String, String> tracingMetadata,
-      String name,
-      Tag... tags) {
+          Subscriber<? super T> subscriber,
+          Context ctx,
+          Tracer tracer,
+          Map<String, String> tracingMetadata,
+          String name,
+          Tag... tags) {
     this.subscriber = subscriber;
     this.tracer = tracer;
     Span root = ctx.getOrDefault(Span.class, this.tracer.activeSpan());
@@ -119,7 +119,7 @@ final class SpanSubscriber<T> extends AtomicBoolean implements SpanSubscription<
 
     if (tracingMetadata != null) {
       TextMapInjectAdapter adapter = new TextMapInjectAdapter(tracingMetadata);
-      tracer.inject(span.context(), Format.Builtin.TEXT_MAP, adapter);
+      tracer.inject(span.context(), Format.Builtin.TEXT_MAP_INJECT, adapter);
     }
 
     if (log.isTraceEnabled()) {
@@ -134,8 +134,8 @@ final class SpanSubscriber<T> extends AtomicBoolean implements SpanSubscription<
       log.trace("On subscribe");
     }
     this.s = subscription;
-    try (Scope scope = this.tracer.scopeManager().activate(span, false)) {
-      scope.span().log(TimeUnit.MILLISECONDS.toMicros(System.currentTimeMillis()), "onSubscribe");
+    try (Scope scope = this.tracer.scopeManager().activate(span)) {
+      span.log(TimeUnit.MILLISECONDS.toMicros(System.currentTimeMillis()), "onSubscribe");
       if (log.isTraceEnabled()) {
         log.trace("On subscribe - span continued");
       }
@@ -160,8 +160,8 @@ final class SpanSubscriber<T> extends AtomicBoolean implements SpanSubscription<
 
   @Override
   public void cancel() {
-    try (Scope scope = this.tracer.scopeManager().activate(span, false)) {
-      scope.span().log(TimeUnit.MILLISECONDS.toMicros(System.currentTimeMillis()), "cancel");
+    try (Scope scope = this.tracer.scopeManager().activate(span)) {
+      span.log(TimeUnit.MILLISECONDS.toMicros(System.currentTimeMillis()), "cancel");
       if (log.isTraceEnabled()) {
         log.trace("Cancel");
       }
@@ -178,8 +178,8 @@ final class SpanSubscriber<T> extends AtomicBoolean implements SpanSubscription<
 
   @Override
   public void onError(Throwable throwable) {
-    try (Scope scope = this.tracer.scopeManager().activate(span, false)) {
-      scope.span().log(TimeUnit.MILLISECONDS.toMicros(System.currentTimeMillis()), "onError");
+    try (Scope scope = this.tracer.scopeManager().activate(span)) {
+      span.log(TimeUnit.MILLISECONDS.toMicros(System.currentTimeMillis()), "onError");
     } finally {
       cleanup();
     }
@@ -187,8 +187,8 @@ final class SpanSubscriber<T> extends AtomicBoolean implements SpanSubscription<
 
   @Override
   public void onComplete() {
-    try (Scope scope = this.tracer.scopeManager().activate(span, false)) {
-      scope.span().log(TimeUnit.MILLISECONDS.toMicros(System.currentTimeMillis()), "onComplete");
+    try (Scope scope = this.tracer.scopeManager().activate(span)) {
+      span.log(TimeUnit.MILLISECONDS.toMicros(System.currentTimeMillis()), "onComplete");
       this.subscriber.onComplete();
     } finally {
       cleanup();
