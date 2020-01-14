@@ -1006,16 +1006,25 @@ static void PrintServer(const ServiceDescriptor* service,
   } else {
     p->Print(
         *vars,
-        "return new $SwitchTransformFlux$<$Payload$, $Payload$>(payloads, new $BiFunction$<$Payload$, $Flux$<$Payload$>, $Publisher$<? extends $Payload$>>() {\n");
+        "return $Flux$.from(payloads).switchOnFirst(new $BiFunction$<$Signal$<? extends $Payload$>, $Flux$<$Payload$>, $Publisher$<? extends $Payload$>>() {\n");
     p->Indent();
     p->Print(
         *vars,
         "@$Override$\n"
-        "public $Publisher$<$Payload$> apply($Payload$ payload, $Flux$<$Payload$> publisher) {\n");
+        "public $Publisher$<$Payload$> apply($Signal$<? extends $Payload$> first, $Flux$<$Payload$> publisher) {\n");
     p->Indent();
     p->Print(
         *vars,
-        "return requestChannel(payload, publisher);\n");
+        "if (first.hasValue()) {\n");
+    p->Indent();
+    p->Print(
+        *vars,
+        "return requestChannel(first.get(), publisher);\n");
+    p->Outdent();
+    p->Print("}\n");
+    p->Print(
+        *vars,
+        "return publisher;\n");
     p->Outdent();
     p->Print("}\n");
     p->Outdent();
@@ -1212,7 +1221,7 @@ void GenerateServer(const ServiceDescriptor* service,
   vars["RSocket"] = "io.rsocket.RSocket";
   vars["Payload"] = "io.rsocket.Payload";
   vars["ByteBufPayload"] = "io.rsocket.util.ByteBufPayload";
-  vars["SwitchTransformFlux"] = "io.rsocket.internal.SwitchTransformFlux";
+  vars["Signal"] = "reactor.core.publisher.Signal";
   vars["AbstractRSocketService"] = "io.rsocket.rpc.AbstractRSocketService";
   vars["RSocketRpcMetadata"] = "io.rsocket.rpc.frames.Metadata";
   vars["RSocketRpcMetrics"] = "io.rsocket.rpc.metrics.Metrics";
