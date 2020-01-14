@@ -20,11 +20,22 @@ plugins {
 
 description = 'RSocket Java Bill of materials.'
 
+apply from: '../gradle/bom.gradle'
+
+javaPlatform.allowDependencies()
 dependencies {
+    api platform("io.projectreactor:reactor-bom:${reactorBomVersion}")
+    api platform("io.netty:netty-bom:${nettyBomVersion}")
+
     constraints {
-        parent.subprojects.findAll { it.name != project.name && it.name != "rsocket-examples" }.sort { "$it.name" }.each {
-            api it
-        }
+        parent.subprojects
+                .findAll { it.name != project.name && it.name != "rsocket-examples" }
+                .sort { "$it.name" }
+                .each { api it }
+
+        api "org.slf4j:slf4j-api:${slf4jVersion}"
+        api "javax.inject:javax.inject:${javaxVersion}"
+        api "javax.annotation:javax.annotation-api:${javaxAnnotationVersion}"
     }
 }
 
@@ -32,12 +43,8 @@ publishing {
     publications {
         maven(MavenPublication) {
             from components.javaPlatform
-            // remove scope information from published BOM
-            pom.withXml {
-                asNode().dependencyManagement.first().dependencies.first().each {
-                    it.remove(it.scope.first())
-                }
-            }
+            // remove scope information from published BOM, except imported poms
+            removeScope(pom)
         }
     }
 }
