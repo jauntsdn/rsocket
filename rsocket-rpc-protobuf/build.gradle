@@ -1,5 +1,6 @@
 plugins {
 	id 'java-library'
+	id 'maven-publish'
 	id 'com.google.osdetector' version '1.4.0'
 	id 'cpp'
 }
@@ -171,26 +172,16 @@ plugins.withType(MavenPublishPlugin) {
 
 			developers {
 			  developer {
-				id 'robertroeser'
-				name 'Robert Roeser'
-				email 'robert@netifi.com'
-			  }
-			  developer {
-				id 'rdegnan'
-				name 'Ryland Degnan'
-				email 'ryland@netifi.com'
-			  }
-			  developer {
-				id 'OlegDokuka'
-				name 'Oleh Dokuka'
-				email 'oleh@netifi.com'
+				id 'mostroverkhov'
+				name 'Maksym Ostroverkhov'
+				email 'mostroverkhov@gmail.com'
 			  }
 			}
 
 			scm {
-			  connection 'scm:git:https://github.com/rsocket/rsocket-rpc-java.git'
-			  developerConnection 'scm:git:https://github.com/rsocket/rsocket-rpc-java.git'
-			  url 'https://github.com/rsocket/rsocket-rpc-java'
+			  connection 'scm:git:https://github.com/jauntsdn/rsocket.git'
+			  developerConnection 'scm:git:https://github.com/jauntsdn/rsocket.git'
+			  url 'https://github.com/jauntsdn/rsocket'
 			}
 		  }
 		}

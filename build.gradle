@@ -52,7 +52,7 @@ subprojects {
     ext['javax.version'] = '1'
     ext['javax.annotation.version'] = '1.2'
 
-    group = "io.rsocket"
+    group = project.group
 
     googleJavaFormat {
         toolVersion = '1.6'

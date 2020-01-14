@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-rootProject.name = 'rsocket-java'
+rootProject.name = 'rsocket'
 
 include 'rsocket-core'
 include 'rsocket-examples'

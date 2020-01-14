@@ -32,11 +32,11 @@ if (project.hasProperty('bintrayUser') && project.hasProperty('bintrayKey') &&
                     name = 'rsocket-java'
                     licenses = ['Apache-2.0']
 
-                    issueTrackerUrl = 'https://github.com/rsocket/rsocket-java/issues'
-                    websiteUrl = 'https://github.com/rsocket/rsocket-java'
-                    vcsUrl = 'https://github.com/rsocket/rsocket-java.git'
+                    issueTrackerUrl = 'https://github.com/jauntsdn/rsocket/issues'
+                    websiteUrl = 'https://github.com/jauntsdn/rsocket'
+                    vcsUrl = 'https://github.com/jauntsdn/rsocket.git'
 
-                    githubRepo = 'rsocket/rsocket-java' //Optional Github repository
+                    githubRepo = 'jauntsdn/rsocket' //Optional Github repository
                     githubReleaseNotesFile = 'README.md' //Optional Github readme file
 
                     version {
