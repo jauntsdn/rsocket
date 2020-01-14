@@ -11,8 +11,4 @@ dependencies {
     api 'javax.annotation:javax.annotation-api'
     api 'io.micrometer:micrometer-core'
     api 'io.opentracing:opentracing-api'
-
-    testImplementation 'org.mockito:mockito-core'
-    testImplementation 'junit:junit'
-    testImplementation 'org.junit.vintage:junit-vintage-engine'
 }

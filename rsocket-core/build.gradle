@@ -27,20 +27,6 @@ dependencies {
     api 'org.slf4j:slf4j-api'
 
     compileOnly 'com.google.code.findbugs:jsr305'
-
-    testImplementation 'io.projectreactor:reactor-test'
-    testImplementation 'org.assertj:assertj-core'
-    testImplementation 'org.junit.jupiter:junit-jupiter-api'
-    testImplementation 'org.junit.jupiter:junit-jupiter-params'
-    testImplementation 'org.mockito:mockito-core'
-
-    testRuntimeOnly 'ch.qos.logback:logback-classic'
-    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine'
-
-    // TODO: Remove after JUnit5 migration
-    testCompileOnly 'junit:junit'
-    testImplementation 'org.hamcrest:hamcrest-library'
-    testRuntimeOnly 'org.junit.vintage:junit-vintage-engine'
 }
 
 description = "Core functionality for the RSocket library"

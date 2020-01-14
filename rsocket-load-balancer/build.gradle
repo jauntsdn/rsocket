@@ -23,13 +23,6 @@ dependencies {
     api project(':rsocket-core')
 
     testImplementation project(':rsocket-test')
-    testImplementation 'org.junit.jupiter:junit-jupiter-api'
-    testImplementation 'org.mockito:mockito-core'
-
-    // TODO: Remove after JUnit5 migration
-    testCompileOnly 'junit:junit'
-    testImplementation 'org.hamcrest:hamcrest-library'
-    testRuntimeOnly 'org.junit.vintage:junit-vintage-engine'
 }
 
 description = 'Transparent Load Balancer for RSocket'

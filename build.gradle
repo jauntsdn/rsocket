@@ -42,6 +42,28 @@ subprojects {
         mavenCentral()
     }
 
+    afterEvaluate {
+        if (!name.endsWith("test") && !name.endsWith("bom") && !name.endsWith("idl")) {
+            dependencies {
+                testImplementation 'org.hdrhistogram:HdrHistogram'
+                testImplementation 'io.projectreactor:reactor-test'
+                testImplementation 'org.assertj:assertj-core'
+                testImplementation 'org.junit.jupiter:junit-jupiter-api'
+                testImplementation 'org.junit.jupiter:junit-jupiter-params'
+                testImplementation 'org.mockito:mockito-core'
+                testImplementation 'org.mockito:mockito-junit-jupiter'
+
+                testRuntimeOnly 'ch.qos.logback:logback-classic'
+                testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine'
+
+                // TODO: Remove after JUnit5 migration
+                testCompileOnly 'junit:junit'
+                testImplementation 'org.hamcrest:hamcrest-library'
+                testRuntimeOnly 'org.junit.vintage:junit-vintage-engine'
+            }
+        }
+    }
+
     plugins.withType(JavaPlugin) {
         compileJava {
             sourceCompatibility = 1.8
@@ -66,6 +88,7 @@ subprojects {
     }
 
     plugins.withType(JavaLibraryPlugin) {
+
         task sourcesJar(type: Jar) {
             classifier 'sources'
             from sourceSets.main.allJava
