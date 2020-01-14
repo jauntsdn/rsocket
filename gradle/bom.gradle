@@ -27,3 +27,9 @@ ext.removeScope = { pom ->
         }
     }
 }
+
+ext.bomModules = { parent ->
+    parent.subprojects
+            .findAll { it.name != "rsocket-examples" && !it.name.endsWith("bom")}
+            .sort { "$it.name" }
+}

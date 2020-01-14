@@ -18,11 +18,12 @@ plugins {
     id 'maven-publish'
 }
 
-description = 'RSocket Bill of materials.'
+description = 'RSocket-RPC  Bill of materials.'
 
 apply from: '../gradle/bom.gradle'
 
 javaPlatform.allowDependencies()
+
 dependencies {
     api platform("io.projectreactor:reactor-bom:${reactorBomVersion}")
     api platform("io.netty:netty-bom:${nettyBomVersion}")
@@ -33,6 +34,8 @@ dependencies {
         api "org.slf4j:slf4j-api:${slf4jVersion}"
         api "javax.inject:javax.inject:${javaxVersion}"
         api "javax.annotation:javax.annotation-api:${javaxAnnotationVersion}"
+        api "io.micrometer:micrometer-core:${micrometerVersion}"
+        api "io.opentracing:opentracing-api:${openTracingVersion}"
     }
 }
 
