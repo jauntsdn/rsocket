@@ -29,6 +29,12 @@ description = 'RSocket: Stream Oriented Messaging Passing with Reactive Stream S
 apply from: 'gradle/dependency-management.gradle'
 apply from: 'gradle/publishing.gradle'
 
+allprojects {
+    dependencyLocking {
+        lockAllConfigurations()
+    }
+}
+
 subprojects {
     apply plugin: 'com.github.sherter.google-java-format'
 
