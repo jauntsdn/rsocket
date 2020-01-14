@@ -17,8 +17,6 @@
 plugins {
     id 'java-library'
     id 'maven-publish'
-    id 'com.jfrog.artifactory'
-    id 'com.jfrog.bintray'
 }
 
 dependencies {

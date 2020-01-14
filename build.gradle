@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2015-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,129 +15,47 @@
  */
 
 plugins {
-    id 'com.gradle.build-scan' version '2.4.2'
-
-    id 'com.github.sherter.google-java-format' version '0.8' apply false
-    id 'com.jfrog.artifactory' version '4.9.10' apply false
-    id 'com.jfrog.bintray' version '1.8.4' apply false
-    id 'me.champeau.gradle.jmh' version '0.4.8' apply false
-    id 'io.spring.dependency-management' version '1.0.7.RELEASE' apply false
-    id 'io.morethan.jmhreport' version '0.9.0' apply false
-    id 'com.google.protobuf' version '0.8.10' apply false
-    id 'com.google.osdetector' version '1.4.0' apply false
+    id 'io.spring.dependency-management' apply false
+    id 'com.google.protobuf' apply false
+    id 'com.github.sherter.google-java-format' apply false
+    id 'me.champeau.gradle.jmh' apply false
+    id 'io.morethan.jmhreport' apply false
+    id 'com.google.osdetector' apply false
+    id 'com.gradle.build-scan'
 }
 
+description = 'RSocket: Stream Oriented Messaging Passing with Reactive Stream Semantics.'
+
+apply from: 'gradle/dependency-management.gradle'
+apply from: 'gradle/publishing.gradle'
+
 subprojects {
-    apply plugin: 'io.spring.dependency-management'
     apply plugin: 'com.github.sherter.google-java-format'
-    
-    ext['reactor-bom.version'] = 'Dysprosium-RELEASE'
-    ext['logback.version'] = '1.2.3'
-    ext['findbugs.version'] = '3.0.2'
-    ext['netty-bom.version'] = '4.1.37.Final'
-    ext['netty-boringssl.version'] = '2.0.25.Final'
-    ext['hdrhistogram.version'] = '2.1.10'
-    ext['mockito.version'] = '2.25.1'
-    ext['slf4j.version'] = '1.7.25'
-    ext['jmh.version'] = '1.21'
-    ext['junit.version'] = '5.5.2'
-    ext['junit.vintage.version'] = '4.12'
-    ext['hamcrest.version'] = '1.3'
-    ext['micrometer.version'] = '1.3.2'
-    ext['assertj.version'] = '3.11.1'
-    ext['protobuf.version'] = '3.11.1'
-    ext['opentracing.version'] = '0.32.0'
-    ext['opentracing.brave.version'] = '0.35.0'
-    ext['zipkin.sender.version'] = '2.8.0'
-    ext['javax.version'] = '1'
-    ext['javax.annotation.version'] = '1.2'
-
-    group = project.group
-
-    googleJavaFormat {
-        toolVersion = '1.6'
-    }
-
-    ext {
-        if (project.hasProperty('versionSuffix')) {
-            project.version += project.getProperty('versionSuffix')
-        }
-    }
-
-    dependencyManagement {
-        imports {
-            mavenBom "io.projectreactor:reactor-bom:${ext['reactor-bom.version']}"
-            mavenBom "io.netty:netty-bom:${ext['netty-bom.version']}"
-            mavenBom "org.junit:junit-bom:${ext['junit.version']}"
-        }
-
-        dependencies {
-            dependency "ch.qos.logback:logback-classic:${ext['logback.version']}"
-            dependency "com.google.code.findbugs:jsr305:${ext['findbugs.version']}"
-            dependency "io.netty:netty-tcnative-boringssl-static:${ext['netty-boringssl.version']}"
-            dependency "io.micrometer:micrometer-core:${ext['micrometer.version']}"
-            dependency "org.assertj:assertj-core:${ext['assertj.version']}"
-            dependency "org.hdrhistogram:HdrHistogram:${ext['hdrhistogram.version']}"
-            dependency "org.slf4j:slf4j-api:${ext['slf4j.version']}"
-            dependency "javax.inject:javax.inject:${ext['javax.version']}"
-            dependency "javax.annotation:javax.annotation-api:${ext['javax.annotation.version']}"
-            dependency "io.opentracing:opentracing-api:${ext['opentracing.version']}"
-            dependency "io.opentracing.brave:brave-opentracing:${ext['opentracing.brave.version']}"
-            dependency "io.zipkin.reporter2:zipkin-sender-okhttp3:${ext['zipkin.sender.version']}"
-            dependencySet(group: 'com.google.protobuf', version: ext['protobuf.version']) {
-                entry 'protobuf-java'
-                entry 'protoc'
-            }
-            dependency "junit:junit:${ext['junit.vintage.version']}"
-            dependencySet(group: 'org.mockito', version: ext['mockito.version']) {
-                entry 'mockito-junit-jupiter'
-                entry 'mockito-core'
-            }
-            dependency "org.hamcrest:hamcrest-library:${ext['hamcrest.version']}"
-            dependencySet(group: 'org.openjdk.jmh', version: ext['jmh.version']) {
-                entry 'jmh-core'
-                entry 'jmh-generator-annprocess'
-            }
-        }
-        generatedPomCustomization {
-            enabled = false
-        }
-    }
 
     repositories {
         mavenCentral()
-
-        if (version.endsWith('BUILD-SNAPSHOT') || project.hasProperty('platformVersion')) {
-            maven { url 'http://repo.spring.io/libs-snapshot' }
-        }
     }
 
     plugins.withType(JavaPlugin) {
         compileJava {
             sourceCompatibility = 1.8
-
-            // TODO: Cleanup warnings so no need to exclude
-            options.compilerArgs << '-Xlint:all,-overloads,-rawtypes,-unchecked'
         }
 
-/*
         javadoc {
             options.with {
-                links 'https://docs.oracle.com/javase/8/docs/api/'
+                links jdkJavaDoc()
                 links 'https://projectreactor.io/docs/core/release/api/'
                 links 'https://netty.io/4.1/api/'
             }
         }
-*/
-
-        test {
-            useJUnitPlatform()
-
-            systemProperty "io.netty.leakDetection.level", "ADVANCED"
-        }
 
         tasks.named("javadoc").configure {
             onlyIf { System.getenv('SKIP_RELEASE') != "true" }
+        }
+
+        test {
+            useJUnitPlatform()
+            systemProperty "io.netty.leakDetection.level", "ADVANCED"
         }
     }
 
@@ -151,31 +69,30 @@ subprojects {
             classifier 'javadoc'
             from javadoc.destinationDir
         }
-
-        plugins.withType(MavenPublishPlugin) {
-            publishing {
-                publications {
-                    maven(MavenPublication) {
-                        from components.java
-                        artifact sourcesJar
-                        artifact javadocJar
-                    }
-                }
-            }
-        }
     }
 
-}
+    googleJavaFormat {
+        toolVersion = '1.6'
+    }
 
-apply from: "${rootDir}/gradle/publications.gradle"
+    ext {
+        if (project.hasProperty('versionSuffix')) {
+            project.version += project.getProperty('versionSuffix')
+        }
+    }
+}
 
 buildScan {
     termsOfServiceUrl = 'https://gradle.com/terms-of-service'
     termsOfServiceAgree = 'yes'
 }
 
-description = 'RSocket: Stream Oriented Messaging Passing with Reactive Stream Semantics.'
-
-repositories {
-    mavenCentral()
+def jdkJavaDoc() {
+    def version = JavaVersion.current()
+    def majorVersion = version.majorVersion
+    if (version.isJava11Compatible()) {
+        return "https://docs.oracle.com/en/java/javase/$majorVersion/docs/api/"
+    } else {
+        return "https://docs.oracle.com/javase/$majorVersion/docs/api/"
+    }
 }

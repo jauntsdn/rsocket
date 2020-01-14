@@ -17,15 +17,11 @@
 plugins {
     id 'java-library'
     id 'maven-publish'
-    id 'com.jfrog.artifactory'
-    id 'com.jfrog.bintray'
 }
 
 dependencies {
     api project(':rsocket-core')
     api 'io.micrometer:micrometer-core'
-
-    implementation 'org.slf4j:slf4j-api'
 
     compileOnly 'com.google.code.findbugs:jsr305'
 

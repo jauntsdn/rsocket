@@ -1,18 +1,22 @@
-apply from: "${rootDir}/gradle/artifactory.gradle"
-apply from: "${rootDir}/gradle/bintray.gradle"
-
 subprojects {
     plugins.withType(MavenPublishPlugin) {
         publishing {
             publications {
                 maven(MavenPublication) {
+
+                    plugins.withType(JavaLibraryPlugin) {
+                        from components.java
+                        artifact sourcesJar
+                        artifact javadocJar
+                    }
+
                     pom {
                         name = project.name
                         afterEvaluate {
                             description = project.description
                         }
                         groupId = project.group
-                        url = 'jauntsdn.com'
+                        url = 'https://github.com/jauntsdn/rsocket'
                         licenses {
                             license {
                                 name = "The Apache Software License, Version 2.0"

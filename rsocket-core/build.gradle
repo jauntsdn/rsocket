@@ -17,17 +17,14 @@
 plugins {
     id 'java-library'
     id 'maven-publish'
-    id 'com.jfrog.artifactory'
-    id 'com.jfrog.bintray'
     id 'io.morethan.jmhreport'
     id 'me.champeau.gradle.jmh'
 }
 
 dependencies {
-    api 'io.netty:netty-buffer'
     api 'io.projectreactor:reactor-core'
-
-    implementation 'org.slf4j:slf4j-api'
+    api 'io.netty:netty-buffer'
+    api 'org.slf4j:slf4j-api'
 
     compileOnly 'com.google.code.findbugs:jsr305'
 

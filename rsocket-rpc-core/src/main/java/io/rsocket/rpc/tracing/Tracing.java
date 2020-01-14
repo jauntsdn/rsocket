@@ -40,7 +40,7 @@ public class Tracing {
   }
 
   public static SpanContext deserializeTracingMetadata(
-          Tracer tracer, Map<String, String> metadata) {
+      Tracer tracer, Map<String, String> metadata) {
     TextMapExtractAdapter adapter = new TextMapExtractAdapter(metadata);
     return tracer.extract(Format.Builtin.TEXT_MAP_EXTRACT, adapter);
   }
@@ -84,46 +84,46 @@ public class Tracing {
   }
 
   public static <T>
-  Function<Map<String, String>, Function<? super Publisher<T>, ? extends Publisher<T>>> trace(
+      Function<Map<String, String>, Function<? super Publisher<T>, ? extends Publisher<T>>> trace(
           Tracer tracer, String name, Tag... tags) {
     return map ->
-            Operators.lift(
-                    (scannable, subscriber) ->
-                            new SpanSubscriber<T>(
-                                    subscriber, subscriber.currentContext(), tracer, map, name, tags));
+        Operators.lift(
+            (scannable, subscriber) ->
+                new SpanSubscriber<T>(
+                    subscriber, subscriber.currentContext(), tracer, map, name, tags));
   }
 
   public static <T>
-  Function<Map<String, String>, Function<? super Publisher<T>, ? extends Publisher<T>>>
-  trace() {
+      Function<Map<String, String>, Function<? super Publisher<T>, ? extends Publisher<T>>>
+          trace() {
     return map -> publisher -> publisher;
   }
 
   public static <T>
-  Function<SpanContext, Function<? super Publisher<T>, ? extends Publisher<T>>> traceAsChild() {
+      Function<SpanContext, Function<? super Publisher<T>, ? extends Publisher<T>>> traceAsChild() {
     return (spanContext) -> publisher -> publisher;
   }
 
   public static <T>
-  Function<SpanContext, Function<? super Publisher<T>, ? extends Publisher<T>>> traceAsChild(
+      Function<SpanContext, Function<? super Publisher<T>, ? extends Publisher<T>>> traceAsChild(
           Tracer tracer, String name, Tag... tags) {
     return (spanContext) -> {
       if (spanContext == null) {
         return Operators.lift(
-                (scannable, subscriber) ->
-                        new SpanSubscriber<T>(
-                                subscriber, subscriber.currentContext(), tracer, null, name, tags));
+            (scannable, subscriber) ->
+                new SpanSubscriber<T>(
+                    subscriber, subscriber.currentContext(), tracer, null, name, tags));
       } else {
         return Operators.lift(
-                (scannable, subscriber) ->
-                        new SpanSubscriber<T>(
-                                subscriber,
-                                subscriber.currentContext(),
-                                tracer,
-                                null,
-                                spanContext,
-                                name,
-                                tags));
+            (scannable, subscriber) ->
+                new SpanSubscriber<T>(
+                    subscriber,
+                    subscriber.currentContext(),
+                    tracer,
+                    null,
+                    spanContext,
+                    name,
+                    tags));
       }
     };
   }

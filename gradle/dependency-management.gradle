@@ -1,0 +1,57 @@
+/*
+ * Copyright 2019 - present Maksym Ostroverkhov.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+subprojects {
+    apply plugin: 'io.spring.dependency-management'
+
+    dependencyManagement {
+        imports {
+            mavenBom "io.projectreactor:reactor-bom:${reactorBomVersion}"
+            mavenBom "io.netty:netty-bom:${nettyBomVersion}"
+            mavenBom "org.junit:junit-bom:${junitVersion}"
+        }
+
+        dependencies {
+            dependency "io.netty:netty-tcnative-boringssl-static:${nettyBoringSslVersion}"
+            dependency "com.google.protobuf:protobuf-java:${protobufVersion}"
+            dependency "org.slf4j:slf4j-api:${slf4jVersion}"
+            dependency "ch.qos.logback:logback-classic:${logbackVersion}"
+            dependency "javax.inject:javax.inject:${javaxVersion}"
+            dependency "javax.annotation:javax.annotation-api:${javaxAnnotationVersion}"
+            dependency "io.micrometer:micrometer-core:${micrometerVersion}"
+            dependency "io.opentracing:opentracing-api:${openTracingVersion}"
+            dependency "io.opentracing.brave:brave-opentracing:${openTracingBraveVersion}"
+            dependency "io.zipkin.reporter2:zipkin-sender-okhttp3:${zipkinSenderVersion}"
+            dependency "org.hdrhistogram:HdrHistogram:${hdrHistogramVersion}"
+            dependency "com.google.code.findbugs:jsr305:${findbugsVersion}"
+
+            dependency "junit:junit:${junitVintageVersion}"
+            dependency "org.assertj:assertj-core:${assertjVersion}"
+            dependency "org.hamcrest:hamcrest-library:${hamcrestVersion}"
+            dependencySet(group: 'org.mockito', version: mockitoVersion) {
+                entry 'mockito-junit-jupiter'
+                entry 'mockito-core'
+            }
+            dependencySet(group: 'org.openjdk.jmh', version: jmhVersion) {
+                entry 'jmh-core'
+                entry 'jmh-generator-annprocess'
+            }
+        }
+        generatedPomCustomization {
+            enabled = false
+        }
+    }
+}

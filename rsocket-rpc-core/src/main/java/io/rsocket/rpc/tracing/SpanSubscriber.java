@@ -50,13 +50,13 @@ final class SpanSubscriber<T> extends AtomicBoolean implements SpanSubscription<
   private Subscription s;
 
   SpanSubscriber(
-          Subscriber<? super T> subscriber,
-          Context ctx,
-          Tracer tracer,
-          Map<String, String> tracingMetadata,
-          SpanContext spanContext,
-          String name,
-          Tag... tags) {
+      Subscriber<? super T> subscriber,
+      Context ctx,
+      Tracer tracer,
+      Map<String, String> tracingMetadata,
+      SpanContext spanContext,
+      String name,
+      Tag... tags) {
     this.subscriber = subscriber;
     this.tracer = tracer;
     this.rootSpan = null;
@@ -77,22 +77,22 @@ final class SpanSubscriber<T> extends AtomicBoolean implements SpanSubscription<
 
     if (log.isTraceEnabled()) {
       log.trace(
-              "Created span [{}], with name [{}], child of [{}]",
-              this.span,
-              name,
-              spanContext.toString());
+          "Created span [{}], with name [{}], child of [{}]",
+          this.span,
+          name,
+          spanContext.toString());
     }
 
     this.context = ctx.put(Span.class, this.span);
   }
 
   SpanSubscriber(
-          Subscriber<? super T> subscriber,
-          Context ctx,
-          Tracer tracer,
-          Map<String, String> tracingMetadata,
-          String name,
-          Tag... tags) {
+      Subscriber<? super T> subscriber,
+      Context ctx,
+      Tracer tracer,
+      Map<String, String> tracingMetadata,
+      String name,
+      Tag... tags) {
     this.subscriber = subscriber;
     this.tracer = tracer;
     Span root = ctx.getOrDefault(Span.class, this.tracer.activeSpan());

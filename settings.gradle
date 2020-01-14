@@ -14,6 +14,18 @@
  * limitations under the License.
  */
 
+pluginManagement {
+    plugins {
+        id 'io.spring.dependency-management' version "${dependencyManagementPluginVersion}"
+        id 'com.google.protobuf' version "${protobufPluginVersion}"
+        id 'com.gradle.build-scan' version "${buildScanPluginVersion}"
+        id 'com.github.sherter.google-java-format' version "${googleJavaFormatPluginVersion}"
+        id 'me.champeau.gradle.jmh' version "${jmhPluginVersion}"
+        id 'io.morethan.jmhreport' version "${jmhReportPluginVersion}"
+        id 'com.google.osdetector' version "${osdetectorPluginVersion}"
+    }
+}
+
 rootProject.name = 'rsocket'
 
 include 'rsocket-core'
