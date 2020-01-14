@@ -16,7 +16,7 @@ subprojects {
                             description = project.description
                         }
                         groupId = project.group
-                        url = 'rsocket.jauntsdn.com'
+                        url = 'https://rsocket.jauntsdn.com'
                         licenses {
                             license {
                                 name = "The Apache Software License, Version 2.0"
