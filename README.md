@@ -1,21 +1,17 @@
 # RSocket
 
-[![Join the chat at https://gitter.im/RSocket/reactivesocket-java](https://badges.gitter.im/RSocket/reactivesocket-java.svg)](https://gitter.im/ReactiveSocket/reactivesocket-java)
-
-RSocket is a binary protocol for use on byte stream transports such as TCP, WebSockets, and Aeron.
+RSocket is a binary protocol for use on byte stream transports such as TCP, WebSockets and Http2.
 
 It enables the following symmetric interaction models via async message passing over a single connection:
 
 - request/response (stream of 1)
-- request/stream (finite stream of many)
+- request/stream (stream of many)
 - fire-and-forget (no response)
-- event subscription (infinite stream of many)
+- request/channel (bidirectional stream)
 
 Learn more at http://rsocket.io
 
 ## Build and Binaries
-
-[![Build Status](https://travis-ci.org/rsocket/rsocket-java.svg?branch=develop)](https://travis-ci.org/rsocket/rsocket-java)
 
 Releases are available via Maven Central.
 
@@ -23,10 +19,8 @@ Example:
 
 ```groovy
 dependencies {
-    implementation 'io.rsocket:rsocket-core:1.0.0-RC3'
-    implementation 'io.rsocket:rsocket-transport-netty:1.0.0-RC3'
-//    implementation 'io.rsocket:rsocket-core:1.0.0-RC4-SNAPSHOT'
-//    implementation 'io.rsocket:rsocket-transport-netty:1.0.0-RC4-SNAPSHOT'
+    implementation 'com.jauntsdn.rsocket:rsocket-core:<TBD>'
+    implementation 'com.jauntsdn.rsocket:rsocket-transport-netty:<TBD>'
 }
 ```
 
@@ -43,23 +37,18 @@ $./gradlew goJF
 ```
 
 ## Debugging
-Frames can be printed out to help debugging. Set the logger `io.rsocket.FrameLogger` to debug to print the frames.
-
-## Requirements
-
-- Java 8 - heavy dependence on Java 8 functional APIs and java.time, also on Reactor
-- Android O - https://github.com/rsocket/rsocket-demo-android-java8
+Frames can be printed out to help debugging. Set the logger `com.jauntsdn.rsocket.FrameLogger` to debug to print the frames.
 
 ## Trivial Client
 
 ```java
-package io.rsocket.transport.netty;
+package com.jauntsdn.rsocket.transport.netty;
 
-import io.rsocket.Payload;
-import io.rsocket.RSocket;
-import io.rsocket.RSocketFactory;
-import io.rsocket.transport.netty.client.WebsocketClientTransport;
-import io.rsocket.util.DefaultPayload;
+import com.jauntsdn.rsocket.Payload;
+import com.jauntsdn.rsocket.RSocket;
+import com.jauntsdn.rsocket.RSocketFactory;
+import com.jauntsdn.rsocket.transport.netty.client.WebsocketClientTransport;
+import com.jauntsdn.rsocket.util.DefaultPayload;
 import reactor.core.publisher.Flux;
 
 import java.net.URI;
@@ -67,12 +56,16 @@ import java.net.URI;
 public class ExampleClient {
     public static void main(String[] args) {
         WebsocketClientTransport ws = WebsocketClientTransport.create(URI.create("ws://rsocket-demo.herokuapp.com/ws"));
-        RSocket client = RSocketFactory.connect().keepAlive().transport(ws).start().block();
+        RSocket client = RSocketFactory.connect().transport(ws).start().block();
 
         try {
-            Flux<Payload> s = client.requestStream(DefaultPayload.create("peace"));
+            Flux<Payload> response = client.requestStream(DefaultPayload.create("peace"));
 
-            s.take(10).doOnNext(p -> System.out.println(p.getDataUtf8())).blockLast();
+            response.take(10).doOnNext(p -> {
+               String data = p.getDataUtf8();
+               p.release();
+               System.out.println(data);            
+            }).blockLast();
         } finally {
             client.dispose();
         }
@@ -112,11 +105,11 @@ Mono<RSocket> client =
 
 ## Bugs and Feedback
 
-For bugs, questions and discussions please use the [Github Issues](https://github.com/RSocket/reactivesocket-java/issues).
+For bugs, questions and discussions please use the [Github Issues](https://github.com/jauntsdn/rsocket/issues).
 
 ## LICENSE
 
-Copyright 2015-2018 the original author or authors.
+Copyright 2015-2020 the original author or authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.

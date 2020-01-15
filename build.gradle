@@ -107,12 +107,6 @@ subprojects {
     googleJavaFormat {
         toolVersion = '1.6'
     }
-
-    ext {
-        if (project.hasProperty('versionSuffix')) {
-            project.version += project.getProperty('versionSuffix')
-        }
-    }
 }
 
 buildScan {

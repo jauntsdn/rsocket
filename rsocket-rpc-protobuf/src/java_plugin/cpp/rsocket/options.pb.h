@@ -180,7 +180,7 @@ inline bool RSocketMethodOptions::fire_and_forget() const {
   return fire_and_forget_;
 }
 inline void RSocketMethodOptions::set_fire_and_forget(bool value) {
-  
+
   fire_and_forget_ = value;
   // @@protoc_insertion_point(field_set:io.rsocket.rpc.RSocketMethodOptions.fire_and_forget)
 }

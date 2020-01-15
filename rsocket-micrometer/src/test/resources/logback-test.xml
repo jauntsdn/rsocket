@@ -23,7 +23,7 @@
     </encoder>
   </appender>
 
-  <logger name="io.rsocket.fragmentation" level="INFO"/>
+  <logger name="com.jauntsdn.rsocket.fragmentation" level="INFO"/>
 
   <root level="INFO">
     <appender-ref ref="STDOUT"/>

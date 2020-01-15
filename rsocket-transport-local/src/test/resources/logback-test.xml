@@ -23,7 +23,7 @@
         </encoder>
     </appender>
 
-    <logger name="io.rsocket.transport.local" level="INFO"/>
+    <logger name="com.jauntsdn.rsocket.transport.local" level="INFO"/>
 
     <root level="ERROR">
         <appender-ref ref="STDOUT"/>
