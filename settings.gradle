@@ -23,6 +23,7 @@ pluginManagement {
         id 'me.champeau.gradle.jmh' version "${jmhPluginVersion}"
         id 'io.morethan.jmhreport' version "${jmhReportPluginVersion}"
         id 'com.google.osdetector' version "${osdetectorPluginVersion}"
+        id 'com.palantir.git-version' version "${gitPluginVersion}"
     }
 }
 

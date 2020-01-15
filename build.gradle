@@ -21,6 +21,7 @@ plugins {
     id 'me.champeau.gradle.jmh' apply false
     id 'io.morethan.jmhreport' apply false
     id 'com.google.osdetector' apply false
+    id 'com.palantir.git-version'
     id 'com.gradle.build-scan'
 }
 
@@ -37,6 +38,8 @@ allprojects {
 
 subprojects {
     apply plugin: 'com.github.sherter.google-java-format'
+
+    version = projectVersion(project)
 
     repositories {
         mavenCentral()
@@ -125,4 +128,18 @@ def jdkJavaDoc() {
     } else {
         return "https://docs.oracle.com/javase/$majorVersion/docs/api/"
     }
+}
+
+def projectVersion(project) {
+    def versionSuffix = ""
+    def branchName = versionDetails().branchName
+    if (branchName != null) {
+        def isRelease = System.getProperty("release")
+        if (branchName == "develop") {
+            versionSuffix = "-SNAPSHOT"
+        } else if (branchName != 'master' && !isRelease) {
+            versionSuffix = "-${branchName.replace("/", "-")}-SNAPSHOT"
+        }
+    }
+    return project.version + versionSuffix
 }

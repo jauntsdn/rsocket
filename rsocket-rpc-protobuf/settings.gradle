@@ -14,4 +14,11 @@
  * limitations under the License.
  */
 
+pluginManagement {
+    plugins {
+        id 'com.palantir.git-version' version "${gitPluginVersion}"
+        id 'com.google.osdetector' version "${osdetectorPluginVersion}"
+    }
+}
+
 rootProject.name = 'rsocket-rpc-protobuf'

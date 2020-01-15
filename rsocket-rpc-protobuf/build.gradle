@@ -1,11 +1,14 @@
 plugins {
 	id 'java-library'
 	id 'maven-publish'
-	id 'com.google.osdetector' version '1.4.0'
+	id 'com.google.osdetector'
 	id 'cpp'
+	id 'com.palantir.git-version'
 }
 
 description = 'RSocket RPC Protobuf Generator'
+
+version = projectVersion(project)
 
 def pluginPrefix = "rsocket-rpc-protobuf-${osdetector.os}-${osdetector.arch}"
 def pluginName = "${pluginPrefix}.exe"
@@ -161,7 +164,7 @@ plugins.withType(MavenPublishPlugin) {
 
 			name project.name
 			description project.description
-			url 'http://rsocket.io'
+			url 'https://jauntsdn.com'
 
 			licenses {
 			  license {
@@ -188,4 +191,18 @@ plugins.withType(MavenPublishPlugin) {
 	  }
 	}
   }
+}
+
+def projectVersion(project) {
+	def versionSuffix = ""
+	def branchName = versionDetails().branchName
+	if (branchName != null) {
+		def isRelease = System.getProperty("release")
+		if (branchName == "develop") {
+			versionSuffix = "-SNAPSHOT"
+		} else if (branchName != 'master' && !isRelease) {
+			versionSuffix = "-${branchName.replace("/", "-")}-SNAPSHOT"
+		}
+	}
+	return project.version + versionSuffix
 }
