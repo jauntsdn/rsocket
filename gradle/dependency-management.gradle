@@ -33,8 +33,6 @@ subprojects {
             dependency "javax.annotation:javax.annotation-api:${javaxAnnotationVersion}"
             dependency "io.micrometer:micrometer-core:${micrometerVersion}"
             dependency "io.opentracing:opentracing-api:${openTracingVersion}"
-            dependency "io.opentracing.brave:brave-opentracing:${openTracingBraveVersion}"
-            dependency "io.zipkin.reporter2:zipkin-sender-okhttp3:${zipkinSenderVersion}"
             dependency "org.hdrhistogram:HdrHistogram:${hdrHistogramVersion}"
             dependency "com.google.code.findbugs:jsr305:${findbugsVersion}"
 
