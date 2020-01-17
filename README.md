@@ -1,106 +1,143 @@
 # RSocket
 
-RSocket is a binary protocol for use on byte stream transports such as TCP, WebSockets and Http2.
+[RSocket](https://rsocket.io) is a binary session layer (L5) protocol & RPC on top of [Protocol Buffers](https://developers.google.com/protocol-buffers) for use on byte stream transports such as TCP, WebSockets and Http2.
 
-It enables the following symmetric interaction models via async message passing over a single connection:
-
-- request/response (stream of 1)
-- request/stream (stream of many)
-- fire-and-forget (no response)
-- request/channel (bidirectional stream)
-
-Learn more at http://rsocket.io
-
-## Build and Binaries
-
-Releases are available via Maven Central.
-
-Example:
-
-```groovy
-dependencies {
-    implementation 'com.jauntsdn.rsocket:rsocket-core:<TBD>'
-    implementation 'com.jauntsdn.rsocket:rsocket-transport-netty:<TBD>'
-}
+* Rich symmetric (initiated by both Client and Server) interactions via async message passing, with flow control corresponding to [Reactive Streams](https://github.com/reactive-streams/reactive-streams-jvm) specification:
 ```
-
-
-## Development
-
-Install the google-java-format in Intellij, from Plugins preferences.
-Enable under Preferences -> Other Settings -> google-java-format Settings
-
-Format automatically with
-
+  request/channel (bidirectional stream)  
+  request/stream (stream of many)  
+  request/response (stream of 1)  
+  fire-and-forget (no response)  
 ```
-$./gradlew goJF
+* Transport agnostic: RSockets can be carried by any connection-oriented protocol with reliable byte streams delivery - TCP, Websockets & Http2 are available OOTB 
+* Built-in rate limiting with requests lease
+* Automatic session resumption
+* Efficient implementation of efficient protocol:
+    * Stable and solid foundation by [netty](https://github.com/netty/netty) and [projectreactor](https://github.com/reactor/reactor-core): non-blocking IO, plus composable async operations with explicit flow control and error handling enabled excellent latency characteristics
+    * Zero-copy message handling
+    * Small core library footprint: suitable for both server and client/embedded applications
+    
+Server
 ```
-
-## Debugging
-Frames can be printed out to help debugging. Set the logger `com.jauntsdn.rsocket.FrameLogger` to debug to print the frames.
-
-## Trivial Client
-
-```java
-package com.jauntsdn.rsocket.transport.netty;
-
-import com.jauntsdn.rsocket.Payload;
-import com.jauntsdn.rsocket.RSocket;
-import com.jauntsdn.rsocket.RSocketFactory;
-import com.jauntsdn.rsocket.transport.netty.client.WebsocketClientTransport;
-import com.jauntsdn.rsocket.util.DefaultPayload;
-import reactor.core.publisher.Flux;
-
-import java.net.URI;
-
-public class ExampleClient {
-    public static void main(String[] args) {
-        WebsocketClientTransport ws = WebsocketClientTransport.create(URI.create("ws://rsocket-demo.herokuapp.com/ws"));
-        RSocket client = RSocketFactory.connect().transport(ws).start().block();
-
-        try {
-            Flux<Payload> response = client.requestStream(DefaultPayload.create("peace"));
-
-            response.take(10).doOnNext(p -> {
-               String data = p.getDataUtf8();
-               p.release();
-               System.out.println(data);            
-            }).blockLast();
-        } finally {
-            client.dispose();
-        }
-    }
-}
-```
-
-## Zero Copy
-By default to make RSocket easier to use it copies the incoming Payload. Copying the payload comes at cost to performance
-and latency. If you want to use zero copy you must disable this. To disable copying you must include a `payloadDecoder`
-argument in your `RSocketFactory`. This will let you manage the Payload without copying the data from the underlying
-transport. You must free the Payload when you are done with them
-or you will get a memory leak. Used correctly this will reduce latency and increase performance.
-
-### Example Server setup
-```java
-RSocketFactory.receive()
-        // Enable Zero Copy
-        .frameDecoder(PayloadDecoder.ZERO_COPY)
-        .acceptor(new PingHandler())
+ CloseableChannel server = 
+     RSocketFactory.receive()
+        .acceptor(new ServerAcceptor()) // (setup payload, requester RSocket) -> responder RSocket
         .transport(TcpServerTransport.create(7878))
         .start()
-        .block()
-        .onClose()
         .block();
 ```
 
-### Example Client setup
-```java
+Client
+```
 Mono<RSocket> client =
         RSocketFactory.connect()
-            // Enable Zero Copy
-            .frameDecoder(PayloadDecoder.ZERO_COPY)
+            .setupPayload(payload)
+            .acceptor(new OptionalClientAcceptor()) // (requester RSocket) -> responder RSocket 
             .transport(TcpClientTransport.create(7878))
             .start();
+```
+
+RSocket 
+```
+interface RSocket extends Availability, Closeable {
+    Flux<Payload> requestChannel(Publisher<Payload> payloads);
+    Flux<Payload> requestStream(Payload payload);
+    Mono<Payload> requestResponse(Payload payload);
+    Mono<Void> fireAndForget(Payload payload);
+}
+```
+
+## RPC
+
+Think GRPC (Clients & Servers stubs code generated from IDL with `Protocol Buffer` messages instead of plain bytes) with all features of RSocket: less chatty transports, request message-level flow control,
+rate-limiting with request leasing, automatic session resumption - without leaking into application level APIs.   
+
+IDL
+```
+service Service {
+    rpc response (Request) returns (Response) {}
+    rpc serverStream (Request) returns (stream Response) {}
+    rpc clientStream (stream Request) returns (Response) {}
+    rpc channel (stream Request) returns (stream Response) {}
+}
+
+message Request {
+    string message = 1;
+}
+
+message Response {
+    string message = 1;
+}
+```
+
+RPC compiler generates Service interface
+```
+public interface StreamService {
+  Mono<Response> response(Request message, ByteBuf metadata);
+  Flux<Response> serverStream(Request message, ByteBuf metadata);
+  Mono<Response> clientStream(Publisher<Request> messages, ByteBuf metadata);
+  Flux<Response> channel(Publisher<Request> messages, ByteBuf metadata);
+}
+```
+and Client/Server stubs
+```
+public ServiceServer(StreamService service, Optional<MeterRegistry> registry, Optional<Tracer> tracer) {
+
+public ServiceClient(com.jauntsdn.rsocket.RSocket rSocket, MeterRegistry registry, Tracer tracer) {
+```
+
+## Build
+
+Following command cleans output, formats sources, builds and installs binaries to local repository 
+```
+./gradlew clean build publishToMavenLocal
+```
+
+RSocket-RPC compiler is built separately, and requires [Protocol Buffers](https://github.com/grpc/grpc-java/blob/master/COMPILING.md#how-to-build-code-generation-plugin) compiler installed
+```
+cd rsocket-rpc-protobuf
+./gradlew clean build
+```
+
+## Binaries
+
+Releases are available via Maven Central.
+
+##### RSocket
+
+Bill of materials
+```groovy
+dependencyManagement {
+        imports {
+            mavenBom "com.jauntsdn.rsocket:rsocket-bom:<TBD>"
+        }
+}
+```
+Dependencies
+
+```groovy
+dependencies {
+    implementation 'com.jauntsdn.rsocket:rsocket-core'
+    implementation 'com.jauntsdn.rsocket:rsocket-transport-netty'
+}
+```
+
+##### RSocket-RPC
+
+Bill of materials
+```groovy
+dependencyManagement {
+        imports {
+            mavenBom "com.jauntsdn.rsocket:rsocket-rpc-bom:<TBD>"
+        }
+}
+```
+Dependencies
+
+```groovy
+dependencies {
+    implementation 'com.jauntsdn.rsocket:rsocket-rpc-core'
+}
 ```
 
 ## Bugs and Feedback
