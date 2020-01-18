@@ -16,6 +16,8 @@
     * Stable and solid foundation by [netty](https://github.com/netty/netty) and [projectreactor](https://github.com/reactor/reactor-core): non-blocking IO, plus composable async operations with explicit flow control and error handling enabled excellent latency characteristics
     * Zero-copy message handling
     * Small core library footprint: suitable for both server and client/embedded applications
+
+Runnable example is available at [rsocket-showcase](https://github.com/jauntsdn/rsocket-showcases)
     
 Server
 ```
@@ -51,6 +53,8 @@ interface RSocket extends Availability, Closeable {
 
 Think GRPC (Clients & Servers stubs code generated from IDL with `Protocol Buffer` messages instead of plain bytes) with all features of RSocket: less chatty transports, request message-level flow control,
 rate-limiting with request leasing, automatic session resumption - without leaking into application level APIs.   
+
+Runnable example is available at [rsocket-rpc-showcase](https://github.com/jauntsdn/rsocket-showcases)
 
 IDL
 ```
@@ -98,6 +102,9 @@ RSocket-RPC compiler is built separately, and requires [Protocol Buffers](https:
 cd rsocket-rpc-protobuf
 ./gradlew clean build
 ```
+## Examples 
+
+Runnable examples are available at [rsocket-showcases](https://github.com/jauntsdn/rsocket-showcases) project
 
 ## Binaries
 
