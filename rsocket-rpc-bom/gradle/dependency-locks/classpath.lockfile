@@ -1,0 +1,5 @@
+# This is a Gradle generated file for dependency locking.
+# Manual edits can break the build and are not advised.
+# This file is expected to be part of source control.
+io.netty:netty-bom:4.1.45.Final
+io.projectreactor:reactor-bom:Dysprosium-SR2
