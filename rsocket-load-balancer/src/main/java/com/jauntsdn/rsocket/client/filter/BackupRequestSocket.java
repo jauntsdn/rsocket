@@ -21,6 +21,7 @@ import com.jauntsdn.rsocket.RSocket;
 import com.jauntsdn.rsocket.stat.FrugalQuantile;
 import com.jauntsdn.rsocket.stat.Quantile;
 import com.jauntsdn.rsocket.util.Clock;
+import java.util.Optional;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -32,6 +33,7 @@ import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Scheduler;
 
 public class BackupRequestSocket implements RSocket {
   private final ScheduledExecutorService executor;
@@ -86,6 +88,11 @@ public class BackupRequestSocket implements RSocket {
   @Override
   public double availability() {
     return child.availability();
+  }
+
+  @Override
+  public Optional<Scheduler> scheduler() {
+    return child.scheduler();
   }
 
   @Override

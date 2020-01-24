@@ -16,9 +16,11 @@
 
 package com.jauntsdn.rsocket;
 
+import java.util.Optional;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Scheduler;
 
 /**
  * A contract providing different interaction models for <a
@@ -72,5 +74,9 @@ public interface RSocket extends Availability, Closeable {
   @Override
   default double availability() {
     return isDisposed() ? 0.0 : 1.0;
+  }
+
+  default Optional<Scheduler> scheduler() {
+    return Optional.empty();
   }
 }

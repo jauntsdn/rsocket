@@ -33,6 +33,7 @@ import io.netty.buffer.ByteBufAllocator;
 import io.netty.util.ReferenceCountUtil;
 import io.netty.util.collection.IntObjectMap;
 import java.nio.channels.ClosedChannelException;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
@@ -145,6 +146,11 @@ class RSocketRequester implements RSocket {
   @Override
   public double availability() {
     return Math.min(connection.availability(), leaseHandler.availability());
+  }
+
+  @Override
+  public Optional<Scheduler> scheduler() {
+    return Optional.of(transportScheduler);
   }
 
   @Override

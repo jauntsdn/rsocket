@@ -30,12 +30,14 @@ import io.micrometer.core.instrument.Tags;
 import io.micrometer.core.instrument.Timer;
 import io.micrometer.core.instrument.Timer.Sample;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.SignalType;
+import reactor.core.scheduler.Scheduler;
 
 /**
  * An implementation of {@link RSocket} that intercepts interactions and gathers Micrometer metrics
@@ -120,6 +122,11 @@ final class MicrometerRSocket implements RSocket {
   @Override
   public Flux<Payload> requestStream(Payload payload) {
     return delegate.requestStream(payload).doFinally(requestStream);
+  }
+
+  @Override
+  public Optional<Scheduler> scheduler() {
+    return delegate.scheduler();
   }
 
   private static final class InteractionCounters implements Consumer<SignalType> {

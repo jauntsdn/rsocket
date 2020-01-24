@@ -18,9 +18,11 @@ package com.jauntsdn.rsocket.util;
 
 import com.jauntsdn.rsocket.Payload;
 import com.jauntsdn.rsocket.RSocket;
+import java.util.Optional;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Scheduler;
 
 /** Wrapper/Proxy for a RSocket. This is useful when we want to override a specific method. */
 public class RSocketProxy implements RSocket {
@@ -58,6 +60,11 @@ public class RSocketProxy implements RSocket {
   @Override
   public double availability() {
     return source.availability();
+  }
+
+  @Override
+  public Optional<Scheduler> scheduler() {
+    return source.scheduler();
   }
 
   @Override
