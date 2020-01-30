@@ -524,6 +524,11 @@ public class RSocketFactory {
       return this;
     }
 
+    public ServerRSocketFactory lease(boolean leaseEnabled) {
+      this.leaseEnabled = leaseEnabled;
+      return this;
+    }
+
     public ServerRSocketFactory singleSubscriberRequester() {
       this.multiSubscriberRequester = false;
       return this;
@@ -531,6 +536,11 @@ public class RSocketFactory {
 
     public ServerRSocketFactory resume() {
       this.resumeSupported = true;
+      return this;
+    }
+
+    public ServerRSocketFactory resume(boolean resumeEnabled) {
+      this.resumeSupported = resumeEnabled;
       return this;
     }
 
