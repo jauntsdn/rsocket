@@ -33,7 +33,7 @@ import reactor.netty.Connection;
 public final class TcpDuplexConnection extends BaseDuplexConnection {
 
   private final Connection connection;
-  private final ByteBufAllocator allocator = ByteBufAllocator.DEFAULT;
+  private final ByteBufAllocator allocator;
   private final Scheduler scheduler;
 
   /**
@@ -44,6 +44,7 @@ public final class TcpDuplexConnection extends BaseDuplexConnection {
   public TcpDuplexConnection(Connection connection) {
     this.connection = Objects.requireNonNull(connection, "connection must not be null");
     this.scheduler = Schedulers.fromExecutor(connection.channel().eventLoop());
+    this.allocator = connection.channel().alloc();
 
     connection
         .channel()
