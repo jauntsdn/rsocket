@@ -2,13 +2,14 @@ package com.jauntsdn.rsocket.frame.decoder;
 
 import com.jauntsdn.rsocket.Payload;
 import com.jauntsdn.rsocket.frame.*;
-import com.jauntsdn.rsocket.util.ByteBufPayload;
+import com.jauntsdn.rsocket.util.DefaultPayload;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import java.nio.ByteBuffer;
 
-/** Default Frame decoder that copies the frames contents for easy of use. */
+/** Default Frame decoder that copies content into new non-pooled heap buffer. */
 class DefaultPayloadDecoder implements PayloadDecoder {
+  private static final ByteBuffer EMPTY_BUFFER = ByteBuffer.allocate(0);
 
   @Override
   public Payload apply(ByteBuf byteBuf) {
@@ -45,14 +46,20 @@ class DefaultPayloadDecoder implements PayloadDecoder {
         throw new IllegalArgumentException("unsupported frame type: " + type);
     }
 
-    ByteBuffer metadata = ByteBuffer.allocateDirect(m.readableBytes());
-    ByteBuffer data = ByteBuffer.allocateDirect(d.readableBytes());
+    return DefaultPayload.create(copy(d), copy(m));
+  }
 
-    data.put(d.nioBuffer());
-    data.flip();
-    metadata.put(m.nioBuffer());
-    metadata.flip();
-
-    return ByteBufPayload.create(data, metadata);
+  private ByteBuffer copy(ByteBuf byteBuf) {
+    if (byteBuf == null) {
+      return null;
+    }
+    int readableBytes = byteBuf.readableBytes();
+    if (readableBytes == 0) {
+      return EMPTY_BUFFER;
+    }
+    ByteBuffer b = ByteBuffer.allocate(readableBytes);
+    b.put(byteBuf.nioBuffer());
+    b.flip();
+    return b;
   }
 }
