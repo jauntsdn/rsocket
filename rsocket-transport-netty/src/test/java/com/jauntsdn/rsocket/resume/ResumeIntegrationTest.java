@@ -22,6 +22,7 @@ import com.jauntsdn.rsocket.RSocket;
 import com.jauntsdn.rsocket.RSocketFactory;
 import com.jauntsdn.rsocket.exceptions.RejectedResumeException;
 import com.jauntsdn.rsocket.exceptions.UnsupportedSetupException;
+import com.jauntsdn.rsocket.test.SlowTest;
 import com.jauntsdn.rsocket.transport.ClientTransport;
 import com.jauntsdn.rsocket.transport.ServerTransport;
 import com.jauntsdn.rsocket.transport.netty.client.TcpClientTransport;
@@ -42,7 +43,7 @@ import reactor.core.publisher.ReplayProcessor;
 import reactor.core.scheduler.Schedulers;
 import reactor.test.StepVerifier;
 
-// @SlowTest
+@SlowTest
 public class ResumeIntegrationTest {
   private static final String SERVER_HOST = "localhost";
   private static final int SERVER_PORT = 0;
