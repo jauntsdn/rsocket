@@ -28,5 +28,5 @@ public interface ClientTransport extends Transport {
    *
    * @return {@code Publisher}, every subscription returns a single {@code DuplexConnection}.
    */
-  Mono<DuplexConnection> connect();
+  Mono<DuplexConnection> connect(int frameSizeLimit);
 }

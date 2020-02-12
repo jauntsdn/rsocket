@@ -89,12 +89,12 @@ public final class TcpServerTransport implements ServerTransport<CloseableChanne
   }
 
   @Override
-  public Mono<CloseableChannel> start(ConnectionAcceptor acceptor) {
+  public Mono<CloseableChannel> start(ConnectionAcceptor acceptor, int frameSizeLimit) {
     Objects.requireNonNull(acceptor, "acceptor must not be null");
     return server
         .doOnConnection(
             c -> {
-              c.addHandlerLast(new RSocketLengthCodec());
+              c.addHandlerLast(new RSocketLengthCodec(frameSizeLimit));
               acceptor
                   .apply(new TcpDuplexConnection(c))
                   .then(Mono.<Void>never())

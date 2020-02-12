@@ -19,6 +19,7 @@ package com.jauntsdn.rsocket.transport.netty.server;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
+import com.jauntsdn.rsocket.frame.FrameLengthFlyweight;
 import java.net.InetSocketAddress;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -27,6 +28,7 @@ import reactor.netty.tcp.TcpServer;
 import reactor.test.StepVerifier;
 
 final class TcpServerTransportTest {
+  private static final int maxFrameSize = FrameLengthFlyweight.FRAME_LENGTH_MASK;
 
   @DisplayName("creates server with BindAddress")
   @Test
@@ -87,7 +89,7 @@ final class TcpServerTransportTest {
     TcpServerTransport serverTransport = TcpServerTransport.create(address);
 
     serverTransport
-        .start(duplexConnection -> Mono.empty())
+        .start(duplexConnection -> Mono.empty(), maxFrameSize)
         .as(StepVerifier::create)
         .expectNextCount(1)
         .verifyComplete();
@@ -97,7 +99,7 @@ final class TcpServerTransportTest {
   @Test
   void startNullAcceptor() {
     assertThatNullPointerException()
-        .isThrownBy(() -> TcpServerTransport.create("localhost", 8000).start(null))
+        .isThrownBy(() -> TcpServerTransport.create("localhost", 8000).start(null, maxFrameSize))
         .withMessage("acceptor must not be null");
   }
 }

@@ -91,9 +91,9 @@ public final class TcpClientTransport implements ClientTransport {
   }
 
   @Override
-  public Mono<DuplexConnection> connect() {
+  public Mono<DuplexConnection> connect(int frameSizeLimit) {
     return client
-        .doOnConnected(c -> c.addHandlerLast(new RSocketLengthCodec()))
+        .doOnConnected(c -> c.addHandlerLast(new RSocketLengthCodec(frameSizeLimit)))
         .connect()
         .map(TcpDuplexConnection::new);
   }

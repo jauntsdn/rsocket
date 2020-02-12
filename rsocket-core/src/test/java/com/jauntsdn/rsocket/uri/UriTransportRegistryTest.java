@@ -19,16 +19,19 @@ package com.jauntsdn.rsocket.uri;
 import static org.junit.Assert.assertTrue;
 
 import com.jauntsdn.rsocket.DuplexConnection;
+import com.jauntsdn.rsocket.frame.FrameLengthFlyweight;
 import com.jauntsdn.rsocket.test.util.TestDuplexConnection;
 import com.jauntsdn.rsocket.transport.ClientTransport;
 import org.junit.Test;
 
 public class UriTransportRegistryTest {
+  private static final int maxFrameSize = FrameLengthFlyweight.FRAME_LENGTH_MASK;
+
   @Test
   public void testTestRegistered() {
     ClientTransport test = UriTransportRegistry.clientForUri("test://test");
 
-    DuplexConnection duplexConnection = test.connect().block();
+    DuplexConnection duplexConnection = test.connect(maxFrameSize).block();
 
     assertTrue(duplexConnection instanceof TestDuplexConnection);
   }
@@ -37,6 +40,6 @@ public class UriTransportRegistryTest {
   public void testTestUnregistered() {
     ClientTransport test = UriTransportRegistry.clientForUri("mailto://bonson@baulsupp.net");
 
-    test.connect().block();
+    test.connect(maxFrameSize).block();
   }
 }

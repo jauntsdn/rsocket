@@ -48,9 +48,11 @@ final class FrameReassembler extends AtomicBoolean implements Disposable {
   final IntObjectMap<CompositeByteBuf> data;
 
   private final ByteBufAllocator allocator;
+  private final int frameSizeLimit;
 
-  public FrameReassembler(ByteBufAllocator allocator) {
+  public FrameReassembler(ByteBufAllocator allocator, int frameSizeLimit) {
     this.allocator = allocator;
+    this.frameSizeLimit = frameSizeLimit;
     this.headers = new IntObjectHashMap<>();
     this.metadata = new IntObjectHashMap<>();
     this.data = new IntObjectHashMap<>();

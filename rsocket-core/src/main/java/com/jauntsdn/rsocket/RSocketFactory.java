@@ -23,6 +23,7 @@ import com.jauntsdn.rsocket.exceptions.InvalidSetupException;
 import com.jauntsdn.rsocket.exceptions.RejectedSetupException;
 import com.jauntsdn.rsocket.fragmentation.FragmentationDuplexConnection;
 import com.jauntsdn.rsocket.frame.FrameHeaderFlyweight;
+import com.jauntsdn.rsocket.frame.FrameLengthFlyweight;
 import com.jauntsdn.rsocket.frame.ResumeFrameFlyweight;
 import com.jauntsdn.rsocket.frame.SetupFrameFlyweight;
 import com.jauntsdn.rsocket.frame.decoder.PayloadDecoder;
@@ -41,6 +42,7 @@ import com.jauntsdn.rsocket.transport.ServerTransport;
 import com.jauntsdn.rsocket.util.ConnectionUtils;
 import com.jauntsdn.rsocket.util.EmptyPayload;
 import com.jauntsdn.rsocket.util.MultiSubscriberRSocket;
+import com.jauntsdn.rsocket.util.Preconditions;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import java.time.Duration;
@@ -100,7 +102,6 @@ public class RSocketFactory {
     private SocketAcceptor acceptor = (setup, sendingSocket) -> Mono.just(new AbstractRSocket() {});
 
     private Consumer<Throwable> errorConsumer = Throwable::printStackTrace;
-    private int mtu = 0;
     private PluginRegistry plugins = new PluginRegistry(Plugins.defaultPlugins());
 
     private Payload setupPayload = EmptyPayload.INSTANCE;
@@ -129,6 +130,7 @@ public class RSocketFactory {
 
     private ByteBufAllocator allocator = ByteBufAllocator.DEFAULT;
     private boolean acceptFragmentedFrames;
+    private int frameSizeLimit = FrameLengthFlyweight.FRAME_LENGTH_MASK;
 
     public ClientRSocketFactory byteBufAllocator(ByteBufAllocator allocator) {
       Objects.requireNonNull(allocator);
@@ -252,6 +254,11 @@ public class RSocketFactory {
       return this;
     }
 
+    public ClientRSocketFactory frameSizeLimit(int frameSizeLimit) {
+      this.frameSizeLimit = Preconditions.assertFrameSizeLimit(frameSizeLimit);
+      return this;
+    }
+
     @Override
     public Start<RSocket> transport(Supplier<ClientTransport> transportClient) {
       return new StartClient(transportClient);
@@ -307,7 +314,8 @@ public class RSocketFactory {
             .flatMap(
                 connection -> {
                   if (acceptFragmentedFrames) {
-                    connection = new FragmentationDuplexConnection(connection, allocator);
+                    connection =
+                        new FragmentationDuplexConnection(connection, allocator, frameSizeLimit);
                   }
 
                   ClientSetup clientSetup = clientSetup(connection);
@@ -438,7 +446,7 @@ public class RSocketFactory {
       }
 
       private Mono<DuplexConnection> newConnection() {
-        return transportClient.get().connect();
+        return transportClient.get().connect(frameSizeLimit);
       }
     }
   }
@@ -464,6 +472,7 @@ public class RSocketFactory {
     private ByteBufAllocator allocator = ByteBufAllocator.DEFAULT;
     private boolean resumeCleanupStoreOnKeepAlive;
     private boolean acceptFragmentedFrames;
+    private int frameSizeLimit = FrameLengthFlyweight.FRAME_LENGTH_MASK;
 
     private ServerRSocketFactory() {}
 
@@ -565,6 +574,11 @@ public class RSocketFactory {
       return this;
     }
 
+    public ServerRSocketFactory frameSizeLimit(int frameSizeLimit) {
+      this.frameSizeLimit = Preconditions.assertFrameSizeLimit(frameSizeLimit);
+      return this;
+    }
+
     private class ServerStart<T extends Closeable> implements Start<T>, ServerTransportAcceptor {
       private Supplier<ServerTransport<T>> transportServer;
 
@@ -590,7 +604,7 @@ public class RSocketFactory {
       private Mono<Void> acceptor(ServerSetup serverSetup, DuplexConnection connection) {
 
         if (acceptFragmentedFrames) {
-          connection = new FragmentationDuplexConnection(connection, allocator);
+          connection = new FragmentationDuplexConnection(connection, allocator, frameSizeLimit);
         }
 
         ClientServerInputMultiplexer multiplexer =
@@ -720,7 +734,8 @@ public class RSocketFactory {
               public Mono<T> get() {
                 return transportServer
                     .get()
-                    .start(duplexConnection -> acceptor(serverSetup, duplexConnection))
+                    .start(
+                        duplexConnection -> acceptor(serverSetup, duplexConnection), frameSizeLimit)
                     .doOnNext(c -> c.onClose().doFinally(v -> serverSetup.dispose()).subscribe());
               }
             });

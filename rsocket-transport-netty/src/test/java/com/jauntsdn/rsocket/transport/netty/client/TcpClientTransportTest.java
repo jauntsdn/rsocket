@@ -19,6 +19,7 @@ package com.jauntsdn.rsocket.transport.netty.client;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
+import com.jauntsdn.rsocket.frame.FrameLengthFlyweight;
 import com.jauntsdn.rsocket.transport.netty.server.TcpServerTransport;
 import java.net.InetSocketAddress;
 import org.junit.jupiter.api.DisplayName;
@@ -28,6 +29,7 @@ import reactor.netty.tcp.TcpClient;
 import reactor.test.StepVerifier;
 
 final class TcpClientTransportTest {
+  private static final int maxFrameSize = FrameLengthFlyweight.FRAME_LENGTH_MASK;
 
   @DisplayName("connects to server")
   @Test
@@ -37,8 +39,8 @@ final class TcpClientTransportTest {
     TcpServerTransport serverTransport = TcpServerTransport.create(address);
 
     serverTransport
-        .start(duplexConnection -> Mono.empty())
-        .flatMap(context -> TcpClientTransport.create(context.address()).connect())
+        .start(duplexConnection -> Mono.empty(), maxFrameSize)
+        .flatMap(context -> TcpClientTransport.create(context.address()).connect(maxFrameSize))
         .as(StepVerifier::create)
         .expectNextCount(1)
         .verifyComplete();
@@ -47,7 +49,7 @@ final class TcpClientTransportTest {
   @DisplayName("create generates error if server not started")
   @Test
   void connectNoServer() {
-    TcpClientTransport.create(8000).connect().as(StepVerifier::create).verifyError();
+    TcpClientTransport.create(8000).connect(maxFrameSize).as(StepVerifier::create).verifyError();
   }
 
   @DisplayName("creates client with BindAddress")

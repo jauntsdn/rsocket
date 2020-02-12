@@ -18,6 +18,7 @@ package com.jauntsdn.rsocket.transport.netty.server;
 
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
+import com.jauntsdn.rsocket.frame.FrameLengthFlyweight;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import reactor.core.publisher.Mono;
@@ -25,6 +26,7 @@ import reactor.netty.http.server.HttpServer;
 import reactor.test.StepVerifier;
 
 final class WebsocketRouteTransportTest {
+  private static final int maxFrameSize = FrameLengthFlyweight.FRAME_LENGTH_MASK;
 
   @DisplayName("creates server")
   @Test
@@ -63,7 +65,7 @@ final class WebsocketRouteTransportTest {
         new WebsocketRouteTransport(HttpServer.create(), routes -> {}, "/test-path");
 
     serverTransport
-        .start(duplexConnection -> Mono.empty())
+        .start(duplexConnection -> Mono.empty(), maxFrameSize)
         .as(StepVerifier::create)
         .expectNextCount(1)
         .verifyComplete();
@@ -76,7 +78,7 @@ final class WebsocketRouteTransportTest {
         .isThrownBy(
             () ->
                 new WebsocketRouteTransport(HttpServer.create(), routes -> {}, "/test-path")
-                    .start(null))
+                    .start(null, maxFrameSize))
         .withMessage("acceptor must not be null");
   }
 }

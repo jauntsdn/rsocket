@@ -65,7 +65,7 @@ public final class LocalClientTransport implements ClientTransport {
   }
 
   @Override
-  public Mono<DuplexConnection> connect() {
+  public Mono<DuplexConnection> connect(int frameSizeLimit) {
     return Mono.defer(
         () -> {
           LocalServerTransport.ServerDuplexConnectionAcceptor server =

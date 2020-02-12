@@ -33,6 +33,7 @@ import reactor.core.publisher.Flux;
 import reactor.test.StepVerifier;
 
 final class FrameReassemblerTest {
+  private static final int maxFrameSize = FrameLengthFlyweight.FRAME_LENGTH_MASK;
   private static byte[] data = new byte[1024];
   private static byte[] metadata = new byte[1024];
 
@@ -58,7 +59,7 @@ final class FrameReassemblerTest {
             PayloadFrameFlyweight.encode(
                 allocator, 1, false, false, true, DefaultPayload.create(data)));
 
-    FrameReassembler reassembler = new FrameReassembler(allocator);
+    FrameReassembler reassembler = new FrameReassembler(allocator, maxFrameSize);
 
     Flux<ByteBuf> assembled = Flux.fromIterable(byteBufs).handle(reassembler::reassembleFrame);
 
@@ -90,7 +91,7 @@ final class FrameReassemblerTest {
         Arrays.asList(
             RequestResponseFrameFlyweight.encode(allocator, 1, false, DefaultPayload.create(data)));
 
-    FrameReassembler reassembler = new FrameReassembler(allocator);
+    FrameReassembler reassembler = new FrameReassembler(allocator, maxFrameSize);
 
     Flux<ByteBuf> assembled = Flux.fromIterable(byteBufs).handle(reassembler::reassembleFrame);
 
@@ -148,7 +149,7 @@ final class FrameReassemblerTest {
                 true,
                 DefaultPayload.create(Unpooled.EMPTY_BUFFER, Unpooled.wrappedBuffer(metadata))));
 
-    FrameReassembler reassembler = new FrameReassembler(allocator);
+    FrameReassembler reassembler = new FrameReassembler(allocator, maxFrameSize);
 
     Flux<ByteBuf> assembled = Flux.fromIterable(byteBufs).handle(reassembler::reassembleFrame);
 
@@ -214,7 +215,7 @@ final class FrameReassemblerTest {
                 true,
                 DefaultPayload.create(Unpooled.EMPTY_BUFFER, Unpooled.wrappedBuffer(metadata))));
 
-    FrameReassembler reassembler = new FrameReassembler(allocator);
+    FrameReassembler reassembler = new FrameReassembler(allocator, maxFrameSize);
 
     Flux<ByteBuf> assembled = Flux.fromIterable(byteBufs).handle(reassembler::reassembleFrame);
 
@@ -283,7 +284,7 @@ final class FrameReassemblerTest {
                 true,
                 DefaultPayload.create(Unpooled.EMPTY_BUFFER, Unpooled.wrappedBuffer(metadata))));
 
-    FrameReassembler reassembler = new FrameReassembler(allocator);
+    FrameReassembler reassembler = new FrameReassembler(allocator, maxFrameSize);
 
     Flux<ByteBuf> assembled = Flux.fromIterable(byteBufs).handle(reassembler::reassembleFrame);
 
@@ -348,7 +349,7 @@ final class FrameReassemblerTest {
             PayloadFrameFlyweight.encode(
                 allocator, 1, false, false, true, DefaultPayload.create(data)));
 
-    FrameReassembler reassembler = new FrameReassembler(allocator);
+    FrameReassembler reassembler = new FrameReassembler(allocator, maxFrameSize);
 
     Flux<ByteBuf> assembled = Flux.fromIterable(byteBufs).handle(reassembler::reassembleFrame);
 
@@ -414,7 +415,7 @@ final class FrameReassemblerTest {
                 DefaultPayload.create(
                     Unpooled.wrappedBuffer(data), Unpooled.wrappedBuffer(metadata))));
 
-    FrameReassembler reassembler = new FrameReassembler(allocator);
+    FrameReassembler reassembler = new FrameReassembler(allocator, maxFrameSize);
     Flux.fromIterable(byteBufs).handle(reassembler::reassembleFrame).blockLast();
 
     Assert.assertTrue(reassembler.headers.containsKey(1));
@@ -463,7 +464,7 @@ final class FrameReassemblerTest {
                 DefaultPayload.create(
                     Unpooled.wrappedBuffer(data), Unpooled.wrappedBuffer(metadata))));
 
-    FrameReassembler reassembler = new FrameReassembler(allocator);
+    FrameReassembler reassembler = new FrameReassembler(allocator, maxFrameSize);
     Flux.fromIterable(byteBufs).handle(reassembler::reassembleFrame).blockLast();
 
     Assert.assertTrue(reassembler.headers.containsKey(1));

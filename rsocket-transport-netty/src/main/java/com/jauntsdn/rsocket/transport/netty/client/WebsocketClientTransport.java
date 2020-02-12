@@ -16,8 +16,6 @@
 
 package com.jauntsdn.rsocket.transport.netty.client;
 
-import static com.jauntsdn.rsocket.frame.FrameLengthFlyweight.FRAME_LENGTH_MASK;
-
 import com.jauntsdn.rsocket.DuplexConnection;
 import com.jauntsdn.rsocket.transport.ClientTransport;
 import com.jauntsdn.rsocket.transport.ServerTransport;
@@ -147,10 +145,10 @@ public final class WebsocketClientTransport implements ClientTransport, Transpor
   }
 
   @Override
-  public Mono<DuplexConnection> connect() {
+  public Mono<DuplexConnection> connect(int frameSizeLimit) {
     return client
         .headers(headers -> transportHeaders.get().forEach(headers::set))
-        .websocket(FRAME_LENGTH_MASK)
+        .websocket(frameSizeLimit)
         .uri(path)
         .connect()
         .map(WebsocketDuplexConnection::new);

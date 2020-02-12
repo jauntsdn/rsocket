@@ -16,8 +16,6 @@
 
 package com.jauntsdn.rsocket.transport.netty.server;
 
-import static com.jauntsdn.rsocket.frame.FrameLengthFlyweight.FRAME_LENGTH_MASK;
-
 import com.jauntsdn.rsocket.DuplexConnection;
 import com.jauntsdn.rsocket.transport.ClientTransport;
 import com.jauntsdn.rsocket.transport.ServerTransport;
@@ -109,7 +107,7 @@ public final class WebsocketServerTransport extends BaseWebsocketServerTransport
   }
 
   @Override
-  public Mono<CloseableChannel> start(ConnectionAcceptor acceptor) {
+  public Mono<CloseableChannel> start(ConnectionAcceptor acceptor, int frameSizeLimit) {
     Objects.requireNonNull(acceptor, "acceptor must not be null");
     return server
         .handle(
@@ -117,7 +115,7 @@ public final class WebsocketServerTransport extends BaseWebsocketServerTransport
               transportHeaders.get().forEach(response::addHeader);
               return response.sendWebsocket(
                   null,
-                  FRAME_LENGTH_MASK,
+                  frameSizeLimit,
                   (in, out) -> {
                     DuplexConnection connection = new WebsocketDuplexConnection((Connection) in);
                     return acceptor.apply(connection).then(out.neverComplete());

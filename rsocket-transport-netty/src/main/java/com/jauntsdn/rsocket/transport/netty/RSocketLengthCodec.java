@@ -16,7 +16,6 @@
 
 package com.jauntsdn.rsocket.transport.netty;
 
-import static com.jauntsdn.rsocket.frame.FrameLengthFlyweight.FRAME_LENGTH_MASK;
 import static com.jauntsdn.rsocket.frame.FrameLengthFlyweight.FRAME_LENGTH_SIZE;
 
 import io.netty.buffer.ByteBuf;
@@ -30,8 +29,8 @@ import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 public final class RSocketLengthCodec extends LengthFieldBasedFrameDecoder {
 
   /** Creates a new instance of the decoder, specifying the RSocket frame length header size. */
-  public RSocketLengthCodec() {
-    super(FRAME_LENGTH_MASK, 0, FRAME_LENGTH_SIZE, 0, 0);
+  public RSocketLengthCodec(int frameSizeLimit) {
+    super(frameSizeLimit, 0, FRAME_LENGTH_SIZE, 0, 0);
   }
 
   /**

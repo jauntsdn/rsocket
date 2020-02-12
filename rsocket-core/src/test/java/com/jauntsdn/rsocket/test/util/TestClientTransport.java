@@ -17,7 +17,7 @@ public class TestClientTransport implements ClientTransport {
   }
 
   @Override
-  public Mono<DuplexConnection> connect() {
+  public Mono<DuplexConnection> connect(int frameSizeLimit) {
     return Mono.just(testDuplexConnection);
   }
 

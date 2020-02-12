@@ -32,9 +32,9 @@ import reactor.core.publisher.Mono;
  */
 public class UriTransportRegistry {
   private static final ClientTransport FAILED_CLIENT_LOOKUP =
-      () -> Mono.error(new UnsupportedOperationException());
+      (frameSizeLimit) -> Mono.error(new UnsupportedOperationException());
   private static final ServerTransport FAILED_SERVER_LOOKUP =
-      (acceptor) -> Mono.error(new UnsupportedOperationException());
+      (acceptor, frameSizeLimit) -> Mono.error(new UnsupportedOperationException());
 
   private List<UriHandler> handlers;
 

@@ -19,6 +19,7 @@ package com.jauntsdn.rsocket.transport.netty.client;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
+import com.jauntsdn.rsocket.frame.FrameLengthFlyweight;
 import com.jauntsdn.rsocket.transport.netty.server.WebsocketServerTransport;
 import java.net.InetSocketAddress;
 import java.net.URI;
@@ -33,6 +34,7 @@ import reactor.test.StepVerifier;
 
 @ExtendWith(MockitoExtension.class)
 final class WebsocketClientTransportTest {
+  private static final int maxFrameSize = FrameLengthFlyweight.FRAME_LENGTH_MASK;
 
   @DisplayName("connects to server")
   @Test
@@ -42,8 +44,9 @@ final class WebsocketClientTransportTest {
     WebsocketServerTransport serverTransport = WebsocketServerTransport.create(address);
 
     serverTransport
-        .start(duplexConnection -> Mono.empty())
-        .flatMap(context -> WebsocketClientTransport.create(context.address()).connect())
+        .start(duplexConnection -> Mono.empty(), maxFrameSize)
+        .flatMap(
+            context -> WebsocketClientTransport.create(context.address()).connect(maxFrameSize))
         .as(StepVerifier::create)
         .expectNextCount(1)
         .verifyComplete();
@@ -52,7 +55,10 @@ final class WebsocketClientTransportTest {
   @DisplayName("create generates error if server not started")
   @Test
   void connectNoServer() {
-    WebsocketClientTransport.create(8000).connect().as(StepVerifier::create).verifyError();
+    WebsocketClientTransport.create(8000)
+        .connect(maxFrameSize)
+        .as(StepVerifier::create)
+        .verifyError();
   }
 
   @DisplayName("creates client with BindAddress")

@@ -39,11 +39,12 @@ public final class FragmentationDuplexConnection implements DuplexConnection {
   private final DuplexConnection delegate;
   private final FrameReassembler frameReassembler;
 
-  public FragmentationDuplexConnection(DuplexConnection delegate, ByteBufAllocator allocator) {
+  public FragmentationDuplexConnection(
+      DuplexConnection delegate, ByteBufAllocator allocator, int frameSizeLimit) {
     Objects.requireNonNull(delegate, "delegate must not be null");
     Objects.requireNonNull(allocator, "byteBufAllocator must not be null");
     this.delegate = delegate;
-    this.frameReassembler = new FrameReassembler(allocator);
+    this.frameReassembler = new FrameReassembler(allocator, frameSizeLimit);
 
     delegate.onClose().doFinally(s -> frameReassembler.dispose()).subscribe();
   }

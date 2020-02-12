@@ -39,6 +39,7 @@ import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
 final class FragmentationDuplexConnectionTest {
+  private static final int maxFrameSize = FrameLengthFlyweight.FRAME_LENGTH_MASK;
   private static byte[] data = new byte[1024];
   private static byte[] metadata = new byte[1024];
 
@@ -59,7 +60,7 @@ final class FragmentationDuplexConnectionTest {
   @Test
   void constructorNullByteBufAllocator() {
     assertThatNullPointerException()
-        .isThrownBy(() -> new FragmentationDuplexConnection(delegate, null))
+        .isThrownBy(() -> new FragmentationDuplexConnection(delegate, null, maxFrameSize))
         .withMessage("byteBufAllocator must not be null");
   }
 
@@ -67,7 +68,7 @@ final class FragmentationDuplexConnectionTest {
   @Test
   void constructorNullDelegate() {
     assertThatNullPointerException()
-        .isThrownBy(() -> new FragmentationDuplexConnection(null, allocator))
+        .isThrownBy(() -> new FragmentationDuplexConnection(null, allocator, maxFrameSize))
         .withMessage("delegate must not be null");
   }
 
@@ -100,7 +101,7 @@ final class FragmentationDuplexConnectionTest {
     when(delegate.receive()).thenReturn(Flux.fromIterable(byteBufs));
     when(delegate.onClose()).thenReturn(Mono.never());
 
-    new FragmentationDuplexConnection(delegate, allocator)
+    new FragmentationDuplexConnection(delegate, allocator, maxFrameSize)
         .receive()
         .as(StepVerifier::create)
         .assertNext(
@@ -163,7 +164,7 @@ final class FragmentationDuplexConnectionTest {
     when(delegate.receive()).thenReturn(Flux.fromIterable(byteBufs));
     when(delegate.onClose()).thenReturn(Mono.never());
 
-    new FragmentationDuplexConnection(delegate, allocator)
+    new FragmentationDuplexConnection(delegate, allocator, maxFrameSize)
         .receive()
         .as(StepVerifier::create)
         .assertNext(
@@ -231,7 +232,7 @@ final class FragmentationDuplexConnectionTest {
     when(delegate.receive()).thenReturn(Flux.fromIterable(byteBufs));
     when(delegate.onClose()).thenReturn(Mono.never());
 
-    new FragmentationDuplexConnection(delegate, allocator)
+    new FragmentationDuplexConnection(delegate, allocator, maxFrameSize)
         .receive()
         .as(StepVerifier::create)
         .assertNext(
@@ -252,7 +253,7 @@ final class FragmentationDuplexConnectionTest {
     when(delegate.receive()).thenReturn(Flux.just(encode));
     when(delegate.onClose()).thenReturn(Mono.never());
 
-    new FragmentationDuplexConnection(delegate, allocator)
+    new FragmentationDuplexConnection(delegate, allocator, maxFrameSize)
         .receive()
         .as(StepVerifier::create)
         .assertNext(
@@ -271,7 +272,7 @@ final class FragmentationDuplexConnectionTest {
     when(delegate.receive()).thenReturn(Flux.just(frame));
     when(delegate.onClose()).thenReturn(Mono.never());
 
-    new FragmentationDuplexConnection(delegate, allocator)
+    new FragmentationDuplexConnection(delegate, allocator, maxFrameSize)
         .receive()
         .as(StepVerifier::create)
         .assertNext(

@@ -102,7 +102,7 @@ public final class LocalServerTransport implements ServerTransport<Closeable> {
   }
 
   @Override
-  public Mono<Closeable> start(ConnectionAcceptor acceptor) {
+  public Mono<Closeable> start(ConnectionAcceptor acceptor, int frameSizeLimit) {
     Objects.requireNonNull(acceptor, "acceptor must not be null");
     return Mono.create(
         sink -> {
