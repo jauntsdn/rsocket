@@ -12,10 +12,9 @@ class DefaultPayloadDecoder implements PayloadDecoder {
   private static final ByteBuffer EMPTY_BUFFER = ByteBuffer.allocate(0);
 
   @Override
-  public Payload apply(ByteBuf byteBuf) {
+  public Payload apply(ByteBuf byteBuf, FrameType type) {
     ByteBuf m;
     ByteBuf d;
-    FrameType type = FrameHeaderFlyweight.frameType(byteBuf);
     switch (type) {
       case REQUEST_FNF:
         d = RequestFireAndForgetFrameFlyweight.data(byteBuf);

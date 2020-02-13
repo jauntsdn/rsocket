@@ -12,10 +12,9 @@ import io.netty.buffer.Unpooled;
  */
 public class ZeroCopyPayloadDecoder implements PayloadDecoder {
   @Override
-  public Payload apply(ByteBuf byteBuf) {
+  public Payload apply(ByteBuf byteBuf, FrameType type) {
     ByteBuf m;
     ByteBuf d;
-    FrameType type = FrameHeaderFlyweight.frameType(byteBuf);
     switch (type) {
       case REQUEST_FNF:
         d = RequestFireAndForgetFrameFlyweight.data(byteBuf);

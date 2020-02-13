@@ -564,7 +564,7 @@ class RSocketRequester implements RSocket {
           receivers.remove(streamId);
           break;
         case NEXT_COMPLETE:
-          receiver.onNext(payloadDecoder.apply(frame));
+          receiver.onNext(payloadDecoder.apply(frame, type));
           receiver.onComplete();
           break;
         case CANCEL:
@@ -576,7 +576,7 @@ class RSocketRequester implements RSocket {
             break;
           }
         case NEXT:
-          receiver.onNext(payloadDecoder.apply(frame));
+          receiver.onNext(payloadDecoder.apply(frame, type));
           break;
         case REQUEST_N:
           {

@@ -237,37 +237,37 @@ class RSocketResponder implements ResponderRSocket {
       FrameType frameType = FrameHeaderFlyweight.strictFrameType(frame);
       switch (frameType) {
         case REQUEST_FNF:
-          handleFireAndForget(streamId, fireAndForget(payloadDecoder.apply(frame)));
+          handleFireAndForget(streamId, fireAndForget(payloadDecoder.apply(frame, frameType)));
           break;
         case REQUEST_RESPONSE:
-          handleRequestResponse(streamId, requestResponse(payloadDecoder.apply(frame)));
+          handleRequestResponse(streamId, requestResponse(payloadDecoder.apply(frame, frameType)));
           break;
         case REQUEST_N:
           handleRequestN(streamId, frame);
           break;
         case REQUEST_STREAM:
           int streamInitialRequestN = RequestStreamFrameFlyweight.initialRequestN(frame);
-          Payload streamPayload = payloadDecoder.apply(frame);
+          Payload streamPayload = payloadDecoder.apply(frame, frameType);
           handleStream(streamId, requestStream(streamPayload), streamInitialRequestN);
           break;
         case REQUEST_CHANNEL:
           int channelInitialRequestN = RequestChannelFrameFlyweight.initialRequestN(frame);
-          Payload channelPayload = payloadDecoder.apply(frame);
+          Payload channelPayload = payloadDecoder.apply(frame, frameType);
           handleChannel(streamId, channelPayload, channelInitialRequestN);
           break;
         case METADATA_PUSH:
-          handleMetadataPush(metadataPush(payloadDecoder.apply(frame)));
+          handleMetadataPush(metadataPush(payloadDecoder.apply(frame, frameType)));
           break;
         case NEXT:
           receiver = receivers.get(streamId);
           if (receiver != null) {
-            receiver.onNext(payloadDecoder.apply(frame));
+            receiver.onNext(payloadDecoder.apply(frame, frameType));
           }
           break;
         case NEXT_COMPLETE:
           receiver = receivers.get(streamId);
           if (receiver != null) {
-            receiver.onNext(payloadDecoder.apply(frame));
+            receiver.onNext(payloadDecoder.apply(frame, frameType));
             receiver.onComplete();
           }
           break;

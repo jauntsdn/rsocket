@@ -23,11 +23,11 @@ import com.jauntsdn.rsocket.exceptions.ConnectionErrorException;
 import com.jauntsdn.rsocket.frame.FrameHeaderFlyweight;
 import com.jauntsdn.rsocket.frame.FrameType;
 import com.jauntsdn.rsocket.frame.KeepAliveFrameFlyweight;
+import com.jauntsdn.rsocket.frame.decoder.PayloadDecoder;
 import com.jauntsdn.rsocket.lease.RequesterLeaseHandler;
 import com.jauntsdn.rsocket.resume.InMemoryResumableFramesStore;
 import com.jauntsdn.rsocket.resume.ResumableDuplexConnection;
 import com.jauntsdn.rsocket.test.util.TestDuplexConnection;
-import com.jauntsdn.rsocket.util.DefaultPayload;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
@@ -58,7 +58,7 @@ public class KeepAliveTest {
         new RSocketRequester(
             ByteBufAllocator.DEFAULT,
             connection,
-            DefaultPayload::create,
+            PayloadDecoder.DEFAULT,
             errors,
             StreamIdSupplier.clientSupplier(),
             tickPeriod,
@@ -83,7 +83,7 @@ public class KeepAliveTest {
         new RSocketRequester(
             ByteBufAllocator.DEFAULT,
             resumableConnection,
-            DefaultPayload::create,
+            PayloadDecoder.DEFAULT,
             errors,
             StreamIdSupplier.clientSupplier(),
             tickPeriod,

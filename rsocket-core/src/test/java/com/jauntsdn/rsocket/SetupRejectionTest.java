@@ -9,6 +9,7 @@ import com.jauntsdn.rsocket.frame.ErrorFrameFlyweight;
 import com.jauntsdn.rsocket.frame.FrameHeaderFlyweight;
 import com.jauntsdn.rsocket.frame.FrameType;
 import com.jauntsdn.rsocket.frame.SetupFrameFlyweight;
+import com.jauntsdn.rsocket.frame.decoder.PayloadDecoder;
 import com.jauntsdn.rsocket.keepalive.KeepAliveHandler;
 import com.jauntsdn.rsocket.lease.RequesterLeaseHandler;
 import com.jauntsdn.rsocket.test.util.TestDuplexConnection;
@@ -54,7 +55,7 @@ public class SetupRejectionTest {
         new RSocketRequester(
             ByteBufAllocator.DEFAULT,
             conn,
-            DefaultPayload::create,
+            PayloadDecoder.DEFAULT,
             errors::add,
             StreamIdSupplier.clientSupplier(),
             100_000,
@@ -89,7 +90,7 @@ public class SetupRejectionTest {
         new RSocketRequester(
             ByteBufAllocator.DEFAULT,
             conn,
-            DefaultPayload::create,
+            PayloadDecoder.DEFAULT,
             err -> {},
             StreamIdSupplier.clientSupplier(),
             100_000,

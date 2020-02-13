@@ -20,6 +20,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 
 import com.jauntsdn.rsocket.exceptions.ApplicationErrorException;
+import com.jauntsdn.rsocket.frame.decoder.PayloadDecoder;
 import com.jauntsdn.rsocket.keepalive.KeepAliveHandler;
 import com.jauntsdn.rsocket.lease.RequesterLeaseHandler;
 import com.jauntsdn.rsocket.lease.ResponderLeaseHandler;
@@ -168,7 +169,7 @@ public class RSocketTest {
               ByteBufAllocator.DEFAULT,
               serverConnection,
               requestAcceptor,
-              DefaultPayload::create,
+              PayloadDecoder.DEFAULT,
               throwable -> serverErrors.add(throwable),
               ResponderLeaseHandler.None);
 
@@ -176,7 +177,7 @@ public class RSocketTest {
           new RSocketRequester(
               ByteBufAllocator.DEFAULT,
               clientConnection,
-              DefaultPayload::create,
+              PayloadDecoder.DEFAULT,
               throwable -> clientErrors.add(throwable),
               StreamIdSupplier.clientSupplier(),
               100_000,

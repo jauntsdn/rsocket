@@ -26,10 +26,10 @@ import static org.mockito.Mockito.verify;
 import com.jauntsdn.rsocket.exceptions.ApplicationErrorException;
 import com.jauntsdn.rsocket.exceptions.RejectedSetupException;
 import com.jauntsdn.rsocket.frame.*;
+import com.jauntsdn.rsocket.frame.decoder.PayloadDecoder;
 import com.jauntsdn.rsocket.keepalive.KeepAliveHandler;
 import com.jauntsdn.rsocket.lease.RequesterLeaseHandler;
 import com.jauntsdn.rsocket.test.util.TestSubscriber;
-import com.jauntsdn.rsocket.util.DefaultPayload;
 import com.jauntsdn.rsocket.util.EmptyPayload;
 import com.jauntsdn.rsocket.util.MultiSubscriberRSocket;
 import io.netty.buffer.ByteBuf;
@@ -233,7 +233,7 @@ public class RSocketRequesterTest {
       return new RSocketRequester(
           ByteBufAllocator.DEFAULT,
           connection,
-          DefaultPayload::create,
+          PayloadDecoder.DEFAULT,
           throwable -> errors.add(throwable),
           StreamIdSupplier.clientSupplier(),
           100_000,
