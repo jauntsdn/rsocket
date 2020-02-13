@@ -234,7 +234,7 @@ class RSocketResponder implements ResponderRSocket {
     try {
       int streamId = FrameHeaderFlyweight.streamId(frame);
       Subscriber<Payload> receiver;
-      FrameType frameType = FrameHeaderFlyweight.frameType(frame);
+      FrameType frameType = FrameHeaderFlyweight.strictFrameType(frame);
       switch (frameType) {
         case REQUEST_FNF:
           handleFireAndForget(streamId, fireAndForget(payloadDecoder.apply(frame)));

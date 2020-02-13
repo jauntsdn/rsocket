@@ -121,6 +121,39 @@ public final class FrameHeaderFlyweight {
     return result;
   }
 
+  public static FrameType strictFrameType(ByteBuf byteBuf) {
+    byteBuf.markReaderIndex();
+    byteBuf.skipBytes(Integer.BYTES);
+    int typeAndFlags = byteBuf.readShort() & 0xFFFF;
+    int flags = typeAndFlags & FRAME_FLAGS_MASK;
+
+    FrameType result = FrameType.fromEncodedType(typeAndFlags >> FRAME_TYPE_SHIFT);
+
+    if (result.isFragmentable() && FLAGS_F == (flags & FLAGS_F)) {
+      throw new IllegalStateException(
+          "Frame fragment was not reassembled. Enable reassembly with RSocketFactory.acceptFragmentedFrames()");
+    }
+
+    if (FrameType.PAYLOAD == result) {
+
+      boolean complete = FLAGS_C == (flags & FLAGS_C);
+      boolean next = FLAGS_N == (flags & FLAGS_N);
+      if (next && complete) {
+        result = FrameType.NEXT_COMPLETE;
+      } else if (complete) {
+        result = FrameType.COMPLETE;
+      } else if (next) {
+        result = FrameType.NEXT;
+      } else {
+        throw new IllegalArgumentException("Payload must set either or both of NEXT and COMPLETE.");
+      }
+    }
+
+    byteBuf.resetReaderIndex();
+
+    return result;
+  }
+
   public static void ensureFrameType(final FrameType frameType, ByteBuf byteBuf) {
     if (!disableFrameTypeCheck) {
       final FrameType typeInFrame = frameType(byteBuf);

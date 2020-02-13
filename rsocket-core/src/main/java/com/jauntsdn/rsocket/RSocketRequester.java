@@ -521,7 +521,7 @@ class RSocketRequester implements RSocket {
   private void handleIncomingFrames(ByteBuf frame) {
     try {
       int streamId = FrameHeaderFlyweight.streamId(frame);
-      FrameType type = FrameHeaderFlyweight.frameType(frame);
+      FrameType type = FrameHeaderFlyweight.strictFrameType(frame);
       if (streamId == 0) {
         handleStreamZero(type, frame);
       } else {
