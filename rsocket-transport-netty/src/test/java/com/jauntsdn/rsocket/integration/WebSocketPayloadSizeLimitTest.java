@@ -19,8 +19,6 @@ public class WebSocketPayloadSizeLimitTest extends PayloadSizeLimitTest {
         /*header length*/
         +FrameHeaderFlyweight.size()
             /*initial requestN*/
-            + Integer.BYTES
-            /*metadata length*/
-            + 3);
+            + Integer.BYTES);
   }
 }

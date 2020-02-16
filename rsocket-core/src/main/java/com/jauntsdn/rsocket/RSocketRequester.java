@@ -255,7 +255,7 @@ class RSocketRequester implements RSocket {
                     RequestResponseFrameFlyweight.encode(
                         allocator,
                         streamId,
-                        payload.sliceMetadata().retain(),
+                        payload.hasMetadata() ? payload.sliceMetadata().retain() : null,
                         payload.sliceData().retain());
                 payload.release();
 
@@ -320,7 +320,7 @@ class RSocketRequester implements RSocket {
                           allocator,
                           streamId,
                           requestN,
-                          payload.sliceMetadata().retain(),
+                          payload.hasMetadata() ? payload.sliceMetadata().retain() : null,
                           payload.sliceData().retain()));
                   payload.release();
                 } else {
@@ -411,7 +411,9 @@ class RSocketRequester implements RSocket {
                                         allocator,
                                         streamId,
                                         requestN,
-                                        payload.sliceMetadata().retain(),
+                                        payload.hasMetadata()
+                                            ? payload.sliceMetadata().retain()
+                                            : null,
                                         payload.sliceData().retain());
                               } else {
                                 final int streamId = stream.getId();
