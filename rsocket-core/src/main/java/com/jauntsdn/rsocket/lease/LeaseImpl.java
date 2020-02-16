@@ -23,6 +23,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 public class LeaseImpl implements Lease {
+  private static final LeaseImpl EMPTY = new LeaseImpl(0, 0, Unpooled.EMPTY_BUFFER);
   private final int timeToLiveMillis;
   private final AtomicInteger allowedRequests;
   private final int startingAllowedRequests;
@@ -35,7 +36,7 @@ public class LeaseImpl implements Lease {
   }
 
   static LeaseImpl empty() {
-    return new LeaseImpl(0, 0, null);
+    return EMPTY;
   }
 
   private LeaseImpl(int timeToLiveMillis, int allowedRequests, @Nullable ByteBuf metadata) {

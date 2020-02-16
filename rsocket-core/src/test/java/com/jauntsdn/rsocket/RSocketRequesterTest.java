@@ -28,7 +28,6 @@ import com.jauntsdn.rsocket.exceptions.RejectedSetupException;
 import com.jauntsdn.rsocket.frame.*;
 import com.jauntsdn.rsocket.frame.decoder.PayloadDecoder;
 import com.jauntsdn.rsocket.keepalive.KeepAliveHandler;
-import com.jauntsdn.rsocket.lease.RequesterLeaseHandler;
 import com.jauntsdn.rsocket.test.util.TestSubscriber;
 import com.jauntsdn.rsocket.util.EmptyPayload;
 import com.jauntsdn.rsocket.util.MultiSubscriberRSocket;
@@ -238,8 +237,7 @@ public class RSocketRequesterTest {
           StreamIdSupplier.clientSupplier(),
           100_000,
           100_000,
-          new KeepAliveHandler.DefaultKeepAliveHandler(connection),
-          RequesterLeaseHandler.None);
+          new KeepAliveHandler.DefaultKeepAliveHandler(connection));
     }
 
     public int getStreamIdForRequestType(FrameType expectedFrameType) {

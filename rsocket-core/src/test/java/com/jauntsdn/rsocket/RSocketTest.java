@@ -22,8 +22,6 @@ import static org.hamcrest.Matchers.is;
 import com.jauntsdn.rsocket.exceptions.ApplicationErrorException;
 import com.jauntsdn.rsocket.frame.decoder.PayloadDecoder;
 import com.jauntsdn.rsocket.keepalive.KeepAliveHandler;
-import com.jauntsdn.rsocket.lease.RequesterLeaseHandler;
-import com.jauntsdn.rsocket.lease.ResponderLeaseHandler;
 import com.jauntsdn.rsocket.test.util.LocalDuplexConnection;
 import com.jauntsdn.rsocket.util.DefaultPayload;
 import com.jauntsdn.rsocket.util.EmptyPayload;
@@ -170,8 +168,7 @@ public class RSocketTest {
               serverConnection,
               requestAcceptor,
               PayloadDecoder.DEFAULT,
-              throwable -> serverErrors.add(throwable),
-              ResponderLeaseHandler.None);
+              throwable -> serverErrors.add(throwable));
 
       crs =
           new RSocketRequester(
@@ -182,8 +179,7 @@ public class RSocketTest {
               StreamIdSupplier.clientSupplier(),
               100_000,
               100_000,
-              new KeepAliveHandler.DefaultKeepAliveHandler(clientConnection),
-              RequesterLeaseHandler.None);
+              new KeepAliveHandler.DefaultKeepAliveHandler(clientConnection));
     }
 
     public void setRequestAcceptor(RSocket requestAcceptor) {

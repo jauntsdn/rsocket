@@ -20,17 +20,12 @@ import com.jauntsdn.rsocket.Availability;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 /** A contract for RSocket lease, which is sent by a request acceptor and is time bound. */
 public interface Lease extends Availability {
 
-  static Lease create(int timeToLiveMillis, int numberOfRequests, @Nullable ByteBuf metadata) {
-    return LeaseImpl.create(timeToLiveMillis, numberOfRequests, metadata);
-  }
-
   static Lease create(int timeToLiveMillis, int numberOfRequests) {
-    return create(timeToLiveMillis, numberOfRequests, Unpooled.EMPTY_BUFFER);
+    return LeaseImpl.create(timeToLiveMillis, numberOfRequests, Unpooled.EMPTY_BUFFER);
   }
 
   /**

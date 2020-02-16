@@ -22,7 +22,6 @@ import static org.hamcrest.Matchers.*;
 
 import com.jauntsdn.rsocket.frame.*;
 import com.jauntsdn.rsocket.frame.decoder.PayloadDecoder;
-import com.jauntsdn.rsocket.lease.ResponderLeaseHandler;
 import com.jauntsdn.rsocket.test.util.TestDuplexConnection;
 import com.jauntsdn.rsocket.test.util.TestSubscriber;
 import com.jauntsdn.rsocket.util.EmptyPayload;
@@ -147,8 +146,7 @@ public class RSocketResponderTest {
           connection,
           acceptingSocket,
           PayloadDecoder.DEFAULT,
-          throwable -> errors.add(throwable),
-          ResponderLeaseHandler.None);
+          throwable -> errors.add(throwable));
     }
 
     private void sendRequest(int streamId, FrameType frameType) {

@@ -27,7 +27,6 @@ import com.jauntsdn.rsocket.internal.UnboundedProcessor;
 import com.jauntsdn.rsocket.keepalive.KeepAlive;
 import com.jauntsdn.rsocket.keepalive.KeepAlive.ServerKeepAlive;
 import com.jauntsdn.rsocket.keepalive.KeepAliveHandler;
-import com.jauntsdn.rsocket.lease.RequesterLeaseHandler;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.util.ReferenceCountUtil;
@@ -65,11 +64,11 @@ class RSocketRequester implements RSocket {
   private final IntObjectMap<Subscription> senders;
   private final IntObjectMap<Processor<Payload, Payload>> receivers;
   private final UnboundedProcessor<ByteBuf> sendProcessor;
-  private final RequesterLeaseHandler leaseHandler;
   private final ByteBufAllocator allocator;
   private final Consumer<ByteBuf> keepAliveFramesAcceptor;
   private final Scheduler transportScheduler;
   private volatile Throwable terminationError;
+  private final KeepAlive keepAlive;
 
   RSocketRequester(
       ByteBufAllocator allocator,
@@ -79,14 +78,12 @@ class RSocketRequester implements RSocket {
       StreamIdSupplier streamIdSupplier,
       int keepAliveTickPeriod,
       int keepAliveAckTimeout,
-      KeepAliveHandler keepAliveHandler,
-      RequesterLeaseHandler leaseHandler) {
+      KeepAliveHandler keepAliveHandler) {
     this.allocator = allocator;
     this.connection = connection;
     this.payloadDecoder = payloadDecoder;
     this.errorConsumer = errorConsumer;
     this.streamIdSupplier = streamIdSupplier;
-    this.leaseHandler = leaseHandler;
     this.senders = new SynchronizedIntObjectHashMap<>();
     this.receivers = new SynchronizedIntObjectHashMap<>();
     this.transportScheduler = connection.scheduler();
@@ -101,6 +98,7 @@ class RSocketRequester implements RSocket {
     connection.send(sendProcessor).subscribe(null, this::handleSendProcessorError);
 
     connection.receive().subscribe(this::handleIncomingFrames, errorConsumer);
+
     KeepAlive keepAlive =
         keepAliveTickPeriod != 0
             ? new ClientKeepAlive(
@@ -114,6 +112,7 @@ class RSocketRequester implements RSocket {
                 allocator,
                 keepAliveAckTimeout,
                 keepAliveFrame -> sendProcessor.onNext(keepAliveFrame));
+    this.keepAlive = keepAlive;
     this.keepAliveFramesAcceptor =
         keepAliveHandler.start(keepAlive, () -> tryTerminate(keepAliveAckTimeout));
   }
@@ -145,7 +144,7 @@ class RSocketRequester implements RSocket {
 
   @Override
   public double availability() {
-    return Math.min(connection.availability(), leaseHandler.availability());
+    return connection.availability();
   }
 
   @Override
@@ -168,8 +167,18 @@ class RSocketRequester implements RSocket {
     return connection.onClose();
   }
 
+  Throwable checkAllowed() {
+    return terminationError;
+  }
+
+  void handleLeaseFrame(ByteBuf frame) {}
+
+  KeepAlive keepAlive() {
+    return keepAlive;
+  }
+
   private Mono<Void> handleFireAndForget(Payload payload) {
-    final Throwable err = checkAvailable();
+    final Throwable err = checkAllowed();
     if (err != null) {
       payload.release();
       return Mono.error(err);
@@ -212,7 +221,7 @@ class RSocketRequester implements RSocket {
   }
 
   private Mono<Payload> handleRequestResponse(final Payload payload) {
-    final Throwable err = checkAvailable();
+    final Throwable err = checkAllowed();
     if (err != null) {
       payload.release();
       return Mono.error(err);
@@ -274,7 +283,7 @@ class RSocketRequester implements RSocket {
   }
 
   private Flux<Payload> handleRequestStream(final Payload payload) {
-    final Throwable err = checkAvailable();
+    final Throwable err = checkAllowed();
     if (err != null) {
       payload.release();
       return Flux.error(err);
@@ -345,7 +354,7 @@ class RSocketRequester implements RSocket {
   }
 
   private Flux<Payload> handleChannel(Flux<Payload> request) {
-    Throwable err = checkAvailable();
+    Throwable err = checkAllowed();
     if (err != null) {
       return Flux.error(err);
     }
@@ -508,18 +517,6 @@ class RSocketRequester implements RSocket {
         });
   }
 
-  private Throwable checkAvailable() {
-    Throwable err = this.terminationError;
-    if (err != null) {
-      return err;
-    }
-    RequesterLeaseHandler lh = leaseHandler;
-    if (!lh.useLease()) {
-      return lh.leaseError();
-    }
-    return null;
-  }
-
   private void handleIncomingFrames(ByteBuf frame) {
     try {
       int streamId = FrameHeaderFlyweight.streamId(frame);
@@ -542,7 +539,7 @@ class RSocketRequester implements RSocket {
         tryTerminate(frame);
         break;
       case LEASE:
-        leaseHandler.receive(frame);
+        handleLeaseFrame(frame);
         break;
       case KEEPALIVE:
         keepAliveFramesAcceptor.accept(frame);
@@ -649,7 +646,6 @@ class RSocketRequester implements RSocket {
 
   private void terminate(Exception e) {
     connection.dispose();
-    leaseHandler.dispose();
 
     synchronized (receivers) {
       receivers
