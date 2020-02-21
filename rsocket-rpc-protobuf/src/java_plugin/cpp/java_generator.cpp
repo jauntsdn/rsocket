@@ -390,20 +390,20 @@ static void PrintClient(const ServiceDescriptor* service,
     if (server_streaming) {
       p->Print(
           *vars,
-          "private final $Function$<? super $Publisher$<$output_type$>, ? extends $Publisher$<$output_type$>> $lower_method_name$;\n");
+          "private final $Function$<? super $Publisher$<$output_type$>, ? extends $Publisher$<$output_type$>> $lower_method_name$Metrics;\n");
     } else if (client_streaming) {
       p->Print(
           *vars,
-          "private final $Function$<? super $Publisher$<$output_type$>, ? extends $Publisher$<$output_type$>> $lower_method_name$;\n");
+          "private final $Function$<? super $Publisher$<$output_type$>, ? extends $Publisher$<$output_type$>> $lower_method_name$Metrics;\n");
     } else {
       if (options.fire_and_forget()) {
         p->Print(
             *vars,
-            "private final $Function$<? super $Publisher$<Void>, ? extends $Publisher$<Void>> $lower_method_name$;\n");
+            "private final $Function$<? super $Publisher$<Void>, ? extends $Publisher$<Void>> $lower_method_name$Metrics;\n");
       } else {
         p->Print(
             *vars,
-            "private final $Function$<? super $Publisher$<$output_type$>, ? extends $Publisher$<$output_type$>> $lower_method_name$;\n");
+            "private final $Function$<? super $Publisher$<$output_type$>, ? extends $Publisher$<$output_type$>> $lower_method_name$Metrics;\n");
       }
     }
   }
@@ -456,7 +456,7 @@ static void PrintClient(const ServiceDescriptor* service,
 
     p->Print(
         *vars,
-        "this.$lower_method_name$ = $Function$.identity();\n");
+        "this.$lower_method_name$Metrics = $Function$.identity();\n");
   }
 
   // Tracing metrics
@@ -489,7 +489,7 @@ static void PrintClient(const ServiceDescriptor* service,
 
     p->Print(
         *vars,
-        "this.$lower_method_name$ = $RSocketRpcMetrics$.timed(registry, \"rsocket.client\", \"service\", $service_name$.$service_field_name$, \"method\", $service_name$.$method_field_name$);\n");
+        "this.$lower_method_name$Metrics = $RSocketRpcMetrics$.timed(registry, \"rsocket.client\", \"service\", $service_name$.$service_field_name$, \"method\", $service_name$.$method_field_name$);\n");
   }
 
   // Tracing metrics
@@ -524,7 +524,7 @@ static void PrintClient(const ServiceDescriptor* service,
 
     p->Print(
         *vars,
-        "this.$lower_method_name$ = $Function$.identity();\n");
+        "this.$lower_method_name$Metrics = $Function$.identity();\n");
   }
 
   // Tracing metrics
@@ -560,7 +560,7 @@ static void PrintClient(const ServiceDescriptor* service,
 
     p->Print(
         *vars,
-        "this.$lower_method_name$ = $RSocketRpcMetrics$.timed(registry, \"rsocket.client\", \"service\", $service_name$.$service_field_name$, \"method\", $service_name$.$method_field_name$);\n");
+        "this.$lower_method_name$Metrics = $RSocketRpcMetrics$.timed(registry, \"rsocket.client\", \"service\", $service_name$.$service_field_name$, \"method\", $service_name$.$method_field_name$);\n");
   }
 
   // Tracing metrics
@@ -731,11 +731,11 @@ static void PrintClient(const ServiceDescriptor* service,
       if (server_streaming) {
         p->Print(
             *vars,
-            "})).map(deserializer($output_type$.parser())).transform($lower_method_name$).transform($lower_method_name$Trace.apply(map));\n");
+            "})).map(deserializer($output_type$.parser())).transform($lower_method_name$Metrics).transform($lower_method_name$Trace.apply(map));\n");
       } else {
         p->Print(
             *vars,
-            "})).map(deserializer($output_type$.parser())).single().transform($lower_method_name$).transform($lower_method_name$Trace.apply(map));\n");
+            "})).map(deserializer($output_type$.parser())).single().transform($lower_method_name$Metrics).transform($lower_method_name$Trace.apply(map));\n");
       }
       p->Outdent();
       p->Outdent();
@@ -772,7 +772,7 @@ static void PrintClient(const ServiceDescriptor* service,
         p->Outdent();
         p->Print(
             *vars,
-            "}).map(deserializer($output_type$.parser())).transform($lower_method_name$).transform($lower_method_name$Trace.apply(map));\n");
+            "}).map(deserializer($output_type$.parser())).transform($lower_method_name$Metrics).transform($lower_method_name$Trace.apply(map));\n");
       } else {
         if (options.fire_and_forget()) {
           p->Print(
@@ -797,7 +797,7 @@ static void PrintClient(const ServiceDescriptor* service,
           p->Outdent();
           p->Print(
               *vars,
-              "}).transform($lower_method_name$).transform($lower_method_name$Trace.apply(map));\n");
+              "}).transform($lower_method_name$Metrics).transform($lower_method_name$Trace.apply(map));\n");
         } else {
           p->Print(
               *vars,
@@ -821,7 +821,7 @@ static void PrintClient(const ServiceDescriptor* service,
           p->Outdent();
           p->Print(
               *vars,
-              "}).map(deserializer($output_type$.parser())).transform($lower_method_name$).transform($lower_method_name$Trace.apply(map));\n");
+              "}).map(deserializer($output_type$.parser())).transform($lower_method_name$Metrics).transform($lower_method_name$Trace.apply(map));\n");
         }
       }
 
@@ -948,20 +948,20 @@ static void PrintServer(const ServiceDescriptor* service,
     if (server_streaming) {
       p->Print(
           *vars,
-          "private final $Function$<? super $Publisher$<$Payload$>, ? extends $Publisher$<$Payload$>> $lower_method_name$;\n");
+          "private final $Function$<? super $Publisher$<$Payload$>, ? extends $Publisher$<$Payload$>> $lower_method_name$Metrics;\n");
     } else if (client_streaming) {
       p->Print(
           *vars,
-          "private final $Function$<? super $Publisher$<$Payload$>, ? extends $Publisher$<$Payload$>> $lower_method_name$;\n");
+          "private final $Function$<? super $Publisher$<$Payload$>, ? extends $Publisher$<$Payload$>> $lower_method_name$Metrics;\n");
     } else {
       if (options.fire_and_forget()) {
         p->Print(
             *vars,
-            "private final $Function$<? super $Publisher$<Void>, ? extends $Publisher$<Void>> $lower_method_name$;\n");
+            "private final $Function$<? super $Publisher$<Void>, ? extends $Publisher$<Void>> $lower_method_name$Metrics;\n");
       } else {
         p->Print(
             *vars,
-            "private final $Function$<? super $Publisher$<$Payload$>, ? extends $Publisher$<$Payload$>> $lower_method_name$;\n");
+            "private final $Function$<? super $Publisher$<$Payload$>, ? extends $Publisher$<$Payload$>> $lower_method_name$Metrics;\n");
       }
     }
   }
@@ -1017,7 +1017,7 @@ static void PrintServer(const ServiceDescriptor* service,
 
     p->Print(
        *vars,
-       "this.$lower_method_name$ = $Function$.identity();\n");
+       "this.$lower_method_name$Metrics = $Function$.identity();\n");
   }
 
   // } else metrics not present {
@@ -1034,7 +1034,7 @@ static void PrintServer(const ServiceDescriptor* service,
 
     p->Print(
         *vars,
-        "this.$lower_method_name$ = $RSocketRpcMetrics$.timed(registry.get(), \"rsocket.server\", \"service\", $service_name$.$service_field_name$, \"method\", $service_name$.$method_field_name$);\n");
+        "this.$lower_method_name$Metrics = $RSocketRpcMetrics$.timed(registry.get(), \"rsocket.server\", \"service\", $service_name$.$service_field_name$, \"method\", $service_name$.$method_field_name$);\n");
   }
 
   p->Outdent();
@@ -1166,7 +1166,7 @@ static void PrintServer(const ServiceDescriptor* service,
       p->Print(
           *vars,
           "$CodedInputStream$ is = $CodedInputStream$.newInstance(payload.getData());\n"
-          "return service.$lower_method_name$($input_type$.parseFrom(is), metadata).transform($lower_method_name$).transform($lower_method_name$Trace.apply(spanContext));\n");
+          "return service.$lower_method_name$($input_type$.parseFrom(is), metadata).transform($lower_method_name$Metrics).transform($lower_method_name$Trace.apply(spanContext));\n");
       p->Outdent();
       p->Print("}\n");
     }
@@ -1231,7 +1231,7 @@ static void PrintServer(const ServiceDescriptor* service,
       p->Print(
           *vars,
           "$CodedInputStream$ is = $CodedInputStream$.newInstance(payload.getData());\n"
-          "return service.$lower_method_name$($input_type$.parseFrom(is), metadata).map(serializer).transform($lower_method_name$).transform($lower_method_name$Trace.apply(spanContext));\n");
+          "return service.$lower_method_name$($input_type$.parseFrom(is), metadata).map(serializer).transform($lower_method_name$Metrics).transform($lower_method_name$Trace.apply(spanContext));\n");
       p->Outdent();
       p->Print("}\n");
     }
@@ -1296,7 +1296,7 @@ static void PrintServer(const ServiceDescriptor* service,
       p->Print(
           *vars,
           "$CodedInputStream$ is = $CodedInputStream$.newInstance(payload.getData());\n"
-          "return service.$lower_method_name$($input_type$.parseFrom(is), metadata).map(serializer).transform($lower_method_name$).transform($lower_method_name$Trace.apply(spanContext));\n");
+          "return service.$lower_method_name$($input_type$.parseFrom(is), metadata).map(serializer).transform($lower_method_name$Metrics).transform($lower_method_name$Trace.apply(spanContext));\n");
       p->Outdent();
       p->Print("}\n");
     }
@@ -1369,11 +1369,11 @@ static void PrintServer(const ServiceDescriptor* service,
       if (method->server_streaming()) {
         p->Print(
             *vars,
-            "return service.$lower_method_name$(messages, metadata).map(serializer).transform($lower_method_name$).transform($lower_method_name$Trace.apply(spanContext));\n");
+            "return service.$lower_method_name$(messages, metadata).map(serializer).transform($lower_method_name$Metrics).transform($lower_method_name$Trace.apply(spanContext));\n");
       } else {
         p->Print(
             *vars,
-            "return service.$lower_method_name$(messages, metadata).map(serializer).transform($lower_method_name$).transform($lower_method_name$Trace.apply(spanContext)).$flux$();\n");
+            "return service.$lower_method_name$(messages, metadata).map(serializer).transform($lower_method_name$Metrics).transform($lower_method_name$Trace.apply(spanContext)).$flux$();\n");
       }
 
       p->Outdent();

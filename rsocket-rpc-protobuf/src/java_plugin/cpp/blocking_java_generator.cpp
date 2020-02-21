@@ -615,20 +615,20 @@ static void PrintServer(const ServiceDescriptor* service,
     if (server_streaming) {
       p->Print(
           *vars,
-          "private final $Function$<? super $Publisher$<$Payload$>, ? extends $Publisher$<$Payload$>> $lower_method_name$;\n");
+          "private final $Function$<? super $Publisher$<$Payload$>, ? extends $Publisher$<$Payload$>> $lower_method_name$Metrics;\n");
     } else if (client_streaming) {
       p->Print(
           *vars,
-          "private final $Function$<? super $Publisher$<$Payload$>, ? extends $Publisher$<$Payload$>> $lower_method_name$;\n");
+          "private final $Function$<? super $Publisher$<$Payload$>, ? extends $Publisher$<$Payload$>> $lower_method_name$Metrics;\n");
     } else {
       if (options.fire_and_forget()) {
         p->Print(
             *vars,
-            "private final $Function$<? super $Publisher$<Void>, ? extends $Publisher$<Void>> $lower_method_name$;\n");
+            "private final $Function$<? super $Publisher$<Void>, ? extends $Publisher$<Void>> $lower_method_name$Metrics;\n");
       } else {
         p->Print(
             *vars,
-            "private final $Function$<? super $Publisher$<$Payload$>, ? extends $Publisher$<$Payload$>> $lower_method_name$;\n");
+            "private final $Function$<? super $Publisher$<$Payload$>, ? extends $Publisher$<$Payload$>> $lower_method_name$Metrics;\n");
       }
     }
   }
@@ -654,7 +654,7 @@ static void PrintServer(const ServiceDescriptor* service,
 
       p->Print(
          *vars,
-         "this.$lower_method_name$ = $Function$.identity();\n");
+         "this.$lower_method_name$Metrics = $Function$.identity();\n");
     }
 
     p->Outdent();
@@ -671,7 +671,7 @@ static void PrintServer(const ServiceDescriptor* service,
 
       p->Print(
           *vars,
-          "this.$lower_method_name$ = $RSocketRpcMetrics$.timed(registry.get(), \"rsocket.server\", \"service\", Blocking$service_name$.$service_id_name$, \"method\", Blocking$service_name$.$method_field_name$);\n");
+          "this.$lower_method_name$Metrics = $RSocketRpcMetrics$.timed(registry.get(), \"rsocket.server\", \"service\", Blocking$service_name$.$service_id_name$, \"method\", Blocking$service_name$.$method_field_name$);\n");
     }
 
     p->Outdent();
@@ -824,7 +824,7 @@ static void PrintServer(const ServiceDescriptor* service,
           *vars,
           "$CodedInputStream$ is = $CodedInputStream$.newInstance(payload.getData());\n"
           "$input_type$ message = $input_type$.parseFrom(is);\n"
-          "return $Mono$.fromSupplier(() -> service.$lower_method_name$(message, metadata)).map(serializer).transform($lower_method_name$).subscribeOn(scheduler);\n");
+          "return $Mono$.fromSupplier(() -> service.$lower_method_name$(message, metadata)).map(serializer).transform($lower_method_name$Metrics).subscribeOn(scheduler);\n");
       p->Outdent();
       p->Print("}\n");
     }
@@ -889,7 +889,7 @@ static void PrintServer(const ServiceDescriptor* service,
           *vars,
           "$CodedInputStream$ is = $CodedInputStream$.newInstance(payload.getData());\n"
           "$input_type$ message = $input_type$.parseFrom(is);\n"
-          "return $Flux$.defer(() -> $Flux$.fromIterable(service.$lower_method_name$(message, metadata)).map(serializer).transform($lower_method_name$)).subscribeOn(scheduler);\n");
+          "return $Flux$.defer(() -> $Flux$.fromIterable(service.$lower_method_name$(message, metadata)).map(serializer).transform($lower_method_name$Metrics)).subscribeOn(scheduler);\n");
       p->Outdent();
       p->Print("}\n");
     }
@@ -961,11 +961,11 @@ static void PrintServer(const ServiceDescriptor* service,
       if (method->server_streaming()) {
         p->Print(
             *vars,
-            "return $Flux$.defer(() -> $Flux$.fromIterable(service.$lower_method_name$(messages.toIterable(), metadata)).map(serializer).transform($lower_method_name$)).subscribeOn(scheduler);\n");
+            "return $Flux$.defer(() -> $Flux$.fromIterable(service.$lower_method_name$(messages.toIterable(), metadata)).map(serializer).transform($lower_method_name$Metrics)).subscribeOn(scheduler);\n");
       } else {
         p->Print(
             *vars,
-            "return $Mono$.fromSupplier(() -> service.$lower_method_name$(messages.toIterable(), metadata)).map(serializer).transform($lower_method_name$).$flux$().subscribeOn(scheduler);\n");
+            "return $Mono$.fromSupplier(() -> service.$lower_method_name$(messages.toIterable(), metadata)).map(serializer).transform($lower_method_name$Metrics).$flux$().subscribeOn(scheduler);\n");
       }
 
       p->Outdent();
