@@ -380,23 +380,11 @@ static void PrintClient(const ServiceDescriptor* service,
 
   p->Print(
       *vars,
-      "\n"
-      "public Blocking$client_class_name$($RSocket$ rSocket) {\n");
+      "public Blocking$client_class_name$($RSocket$ rSocket, $Optional$<$MeterRegistry$> registry) {\n");
   p->Indent();
   p->Print(
       *vars,
-      "this.delegate = new $PackageName$.$client_class_name$(rSocket);\n");
-
-  p->Outdent();
-  p->Print("}\n\n");
-
-  p->Print(
-      *vars,
-      "public Blocking$client_class_name$($RSocket$ rSocket, $MeterRegistry$ registry) {\n");
-  p->Indent();
-  p->Print(
-      *vars,
-      "this.delegate = new $PackageName$.$client_class_name$(rSocket, registry);\n");
+      "this.delegate = new $PackageName$.$client_class_name$(rSocket, registry, $Optional$.empty());\n");
 
   p->Outdent();
   p->Print("}\n\n");
@@ -1181,6 +1169,7 @@ void GenerateClient(const ServiceDescriptor* service,
   vars["PackageName"] = ServiceJavaPackage(service->file());
   vars["Queues"] = "reactor.util.concurrent.Queues";
   vars["RSocketRpcGeneratedMethod"] = "com.jauntsdn.rsocket.rpc.annotations.internal.GeneratedMethod";
+  vars["Optional"] = "java.util.Optional";
 
   Printer printer(out, '$');
     string package_name = ServiceJavaPackage(service->file());

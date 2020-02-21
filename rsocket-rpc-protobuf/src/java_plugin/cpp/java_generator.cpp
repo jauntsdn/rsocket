@@ -439,146 +439,94 @@ static void PrintClient(const ServiceDescriptor* service,
       }
     }
 
-  // RSocket only
   p->Print(
-      *vars,
-      "\n"
-      "public $client_class_name$($RSocket$ rSocket) {\n");
+       *vars,
+       "\npublic $client_class_name$($RSocket$ rSocket, $Optional$<$MeterRegistry$> registry, $Optional$<$Tracer$> tracer) {\n");
   p->Indent();
   p->Print(
-      *vars,
-      "this.rSocket = rSocket;\n");
+       *vars,
+       "this.rSocket = rSocket;\n");
 
-  // RPC metrics
+   // if metrics present {
+  p->Print(
+       *vars,
+       "if (!registry.isPresent()) {\n"
+  );
+  p->Indent();
   for (int i = 0; i < service->method_count(); ++i) {
     const MethodDescriptor* method = service->method(i);
     (*vars)["lower_method_name"] = LowerMethodName(method);
-
     p->Print(
-        *vars,
-        "this.$lower_method_name$Metrics = $Function$.identity();\n");
+       *vars,
+       "this.$lower_method_name$Metrics = $Function$.identity();\n");
   }
 
-  // Tracing metrics
-  for (int i = 0; i < service->method_count(); ++i) {
-    const MethodDescriptor* method = service->method(i);
-    (*vars)["lower_method_name"] = LowerMethodName(method);
+   // } else metrics not present {
+   p->Outdent();
+   p->Print(
+       *vars,
+       "} else {\n"
+   );
+   p->Indent();
+   p->Print(
+           *vars,
+           "$MeterRegistry$ r = registry.get();\n"
+   );
+   for (int i = 0; i < service->method_count(); ++i) {
+     const MethodDescriptor* method = service->method(i);
+     (*vars)["lower_method_name"] = LowerMethodName(method);
+     (*vars)["method_field_name"] = MethodFieldName(method);
 
-    p->Print(
-        *vars,
-        "this.$lower_method_name$Trace = $RSocketRpcTracing$.trace();\n");
-  }
+     p->Print(
+          *vars,
+         "this.$lower_method_name$Metrics = $RSocketRpcMetrics$.timed(r, \"rsocket.client\", \"service\", $service_name$.$service_field_name$, \"method\", $service_name$.$method_field_name$);\n");
+     }
+
+   p->Outdent();
+   p->Print("}\n\n");
+
+    // if tracing present {
+     p->Print(
+         *vars,
+         "if (!tracer.isPresent()) {\n"
+     );
+     p->Indent();
+     for (int i = 0; i < service->method_count(); ++i) {
+       const MethodDescriptor* method = service->method(i);
+       (*vars)["lower_method_name"] = LowerMethodName(method);
+
+       p->Print(
+          *vars,
+          "this.$lower_method_name$Trace = $RSocketRpcTracing$.trace();\n");
+     }
+
+      // } else tracing not present {
+     p->Outdent();
+     p->Print(
+         *vars,
+         "} else {\n"
+     );
+     p->Indent();
+     p->Print(
+         *vars,
+         "$Tracer$ t = tracer.get();\n");
+     for (int i = 0; i < service->method_count(); ++i) {
+       const MethodDescriptor* method = service->method(i);
+       (*vars)["lower_method_name"] = LowerMethodName(method);
+       (*vars)["method_field_name"] = MethodFieldName(method);
+
+       p->Print(
+           *vars,
+           "this.$lower_method_name$Trace = $RSocketRpcTracing$.trace(t, $service_name$.$method_field_name$, $Tag$.of(\"rsocket.service\", $service_name$.$service_field_name$), $Tag$.of(\"rsocket.rpc.role\", \"client\"), $Tag$.of(\"rsocket.rpc.version\", \"$version$\"));\n");
+     }
+     p->Outdent();
+     p->Print("}\n\n");
+     // }
 
   p->Outdent();
   p->Print("}\n\n");
 
-  // RSocket and Metrics
-  p->Print(
-      *vars,
-      "public $client_class_name$($RSocket$ rSocket, $MeterRegistry$ registry) {\n");
-  p->Indent();
-  p->Print(
-      *vars,
-      "this.rSocket = rSocket;\n");
-
-  // RPC metrics
-  for (int i = 0; i < service->method_count(); ++i) {
-    const MethodDescriptor* method = service->method(i);
-    (*vars)["lower_method_name"] = LowerMethodName(method);
-    (*vars)["method_field_name"] = MethodFieldName(method);
-
-    p->Print(
-        *vars,
-        "this.$lower_method_name$Metrics = $RSocketRpcMetrics$.timed(registry, \"rsocket.client\", \"service\", $service_name$.$service_field_name$, \"method\", $service_name$.$method_field_name$);\n");
-  }
-
-  // Tracing metrics
-  for (int i = 0; i < service->method_count(); ++i) {
-    const MethodDescriptor* method = service->method(i);
-    (*vars)["lower_method_name"] = LowerMethodName(method);
-    (*vars)["method_field_name"] = MethodFieldName(method);
-
-    p->Print(
-        *vars,
-        "this.$lower_method_name$Trace = $RSocketRpcTracing$.trace();\n");
-  }
-
-  p->Outdent();
-  p->Print("}\n\n");
-
-  // RSocket and Tracing
-  p->Print(
-      *vars,
-      "\n"
-      "public $client_class_name$($RSocket$ rSocket, $Tracer$ tracer) {\n");
-  p->Indent();
-  p->Print(
-      *vars,
-      "this.rSocket = rSocket;\n");
-
-  // RPC metrics
-  for (int i = 0; i < service->method_count(); ++i) {
-    const MethodDescriptor* method = service->method(i);
-    (*vars)["lower_method_name"] = LowerMethodName(method);
-    (*vars)["method_field_name"] = MethodFieldName(method);
-
-    p->Print(
-        *vars,
-        "this.$lower_method_name$Metrics = $Function$.identity();\n");
-  }
-
-  // Tracing metrics
-  for (int i = 0; i < service->method_count(); ++i) {
-    const MethodDescriptor* method = service->method(i);
-    (*vars)["lower_method_name"] = LowerMethodName(method);
-    (*vars)["method_field_name"] = MethodFieldName(method);
-
-    p->Print(
-        *vars,
-        "this.$lower_method_name$Trace = $RSocketRpcTracing$.trace(tracer, $service_name$.$method_field_name$, $Tag$.of(\"rsocket.service\", $service_name$.$service_field_name$), $Tag$.of(\"rsocket.rpc.role\", \"client\"), $Tag$.of(\"rsocket.rpc.version\", \"$version$\"));\n");
-  }
-
-  p->Outdent();
-  p->Print("}\n\n");
-
-
-  // RSocket, Metrics, and Tracing
-  p->Print(
-      *vars,
-      "\n"
-      "public $client_class_name$($RSocket$ rSocket, $MeterRegistry$ registry, $Tracer$ tracer) {\n");
-  p->Indent();
-  p->Print(
-      *vars,
-      "this.rSocket = rSocket;\n");
-
-  // RPC metrics
-  for (int i = 0; i < service->method_count(); ++i) {
-    const MethodDescriptor* method = service->method(i);
-    (*vars)["lower_method_name"] = LowerMethodName(method);
-    (*vars)["method_field_name"] = MethodFieldName(method);
-
-    p->Print(
-        *vars,
-        "this.$lower_method_name$Metrics = $RSocketRpcMetrics$.timed(registry, \"rsocket.client\", \"service\", $service_name$.$service_field_name$, \"method\", $service_name$.$method_field_name$);\n");
-  }
-
-  // Tracing metrics
-  for (int i = 0; i < service->method_count(); ++i) {
-    const MethodDescriptor* method = service->method(i);
-    (*vars)["lower_method_name"] = LowerMethodName(method);
-    (*vars)["method_field_name"] = MethodFieldName(method);
-
-    p->Print(
-        *vars,
-        "this.$lower_method_name$Trace = $RSocketRpcTracing$.trace(tracer, $service_name$.$method_field_name$, $Tag$.of(\"rsocket.service\", $service_name$.$service_field_name$), $Tag$.of(\"rsocket.rpc.role\", \"client\"), $Tag$.of(\"rsocket.rpc.version\", \"$version$\"));\n");
-  }
-
-  p->Outdent();
-  p->Print("}\n\n");
-
-
-  // RPC methods
+   // RPC methods
   for (int i = 0; i < service->method_count(); ++i) {
     const MethodDescriptor* method = service->method(i);
     const RSocketMethodOptions options = method->options().GetExtension(io::rsocket::rpc::options);
@@ -1593,6 +1541,7 @@ void GenerateClient(const ServiceDescriptor* service,
   vars["Map"] = "java.util.Map";
   vars["HashMap"] = "java.util.HashMap";
   vars["Supplier"] = "java.util.function.Supplier";
+  vars["Optional"] = "java.util.Optional";
 
   Printer printer(out, '$');
   string package_name = ServiceJavaPackage(service->file());
