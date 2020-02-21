@@ -378,6 +378,10 @@ static void PrintClient(const ServiceDescriptor* service,
       *vars,
       "private final $RSocket$ rSocket;\n");
 
+  p->Print(
+        *vars,
+        "private final $Supplier$<$Map$<String, String>> traceMap;\n");
+
   // RPC metrics
   for (int i = 0; i < service->method_count(); ++i) {
     const MethodDescriptor* method = service->method(i);
@@ -491,6 +495,10 @@ static void PrintClient(const ServiceDescriptor* service,
          "if (!tracer.isPresent()) {\n"
      );
      p->Indent();
+     p->Print(
+              *vars,
+              "this.traceMap = $Collections$::emptyMap;\n"
+     );
      for (int i = 0; i < service->method_count(); ++i) {
        const MethodDescriptor* method = service->method(i);
        (*vars)["lower_method_name"] = LowerMethodName(method);
@@ -507,6 +515,10 @@ static void PrintClient(const ServiceDescriptor* service,
          "} else {\n"
      );
      p->Indent();
+     p->Print(
+         *vars,
+         "this.traceMap = $HashMap$::new;\n"
+     );
      p->Print(
          *vars,
          "$Tracer$ t = tracer.get();\n");
@@ -619,7 +631,7 @@ static void PrintClient(const ServiceDescriptor* service,
       p->Print(
           *vars,
           "($Publisher$<$input_type$> messages, $ByteBuf$ metadata) {\n"
-          "$Map$<String, String> map = new $HashMap$<>();\n"
+          "$Map$<String, String> map = this.traceMap.get();\n"
           );
       p->Indent();
        p->Print(
@@ -693,7 +705,7 @@ static void PrintClient(const ServiceDescriptor* service,
       p->Print(
           *vars,
           "($input_type$ message, $ByteBuf$ metadata) {\n"
-          "$Map$<String, String> map = new $HashMap$<>();\n"
+          "$Map$<String, String> map = this.traceMap.get();\n"
           );
       p->Indent();
 
@@ -1540,6 +1552,7 @@ void GenerateClient(const ServiceDescriptor* service,
   vars["Tracer"] = "io.opentracing.Tracer";
   vars["Map"] = "java.util.Map";
   vars["HashMap"] = "java.util.HashMap";
+  vars["Collections"] = "java.util.Collections";
   vars["Supplier"] = "java.util.function.Supplier";
   vars["Optional"] = "java.util.Optional";
 
