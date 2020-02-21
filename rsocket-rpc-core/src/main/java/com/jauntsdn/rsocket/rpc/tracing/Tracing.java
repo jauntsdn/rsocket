@@ -27,16 +27,11 @@ public class Tracing {
 
     ByteBuf tracing = Metadata.getTracing(metadata);
 
-    if (tracing.readableBytes() < 0) {
+    if (tracing.readableBytes() == 0) {
       return null;
     }
 
-    Map<String, String> metadataMap = byteBufToMap(tracing);
-    if (metadataMap.isEmpty()) {
-      return null;
-    }
-
-    return deserializeTracingMetadata(tracer, metadataMap);
+    return deserializeTracingMetadata(tracer, byteBufToMap(tracing));
   }
 
   public static SpanContext deserializeTracingMetadata(
