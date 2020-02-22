@@ -380,11 +380,11 @@ static void PrintClient(const ServiceDescriptor* service,
 
   p->Print(
       *vars,
-      "public Blocking$client_class_name$($RSocket$ rSocket, $Optional$<$MeterRegistry$> registry) {\n");
+      "public Blocking$client_class_name$($RSocket$ rSocket, $Optional$<$ByteBufAllocator$> allocator, $Optional$<$MeterRegistry$> registry) {\n");
   p->Indent();
   p->Print(
       *vars,
-      "this.delegate = new $PackageName$.$client_class_name$(rSocket, registry, $Optional$.empty());\n");
+      "this.delegate = new $PackageName$.$client_class_name$(rSocket, allocator, registry, $Optional$.empty());\n");
 
   p->Outdent();
   p->Print("}\n\n");
@@ -586,7 +586,9 @@ static void PrintServer(const ServiceDescriptor* service,
 
   p->Print(
       *vars,
-      "private final Blocking$service_name$ service;\n");
+      "private final Blocking$service_name$ service;\n"
+      "private final $ByteBufAllocator$ allocator;\n"
+  );
 
   p->Print(
       *vars,
@@ -624,12 +626,14 @@ static void PrintServer(const ServiceDescriptor* service,
   p->Print(
       *vars,
       "@$Inject$\n"
-      "public Blocking$server_class_name$(Blocking$service_name$ service, $Optional$<$Scheduler$> scheduler, $Optional$<$MeterRegistry$> registry) {\n");
+      "public Blocking$server_class_name$(Blocking$service_name$ service, $Optional$<$ByteBufAllocator$> allocator, $Optional$<$Scheduler$> scheduler, $Optional$<$MeterRegistry$> registry) {\n");
   p->Indent();
   p->Print(
       *vars,
       "this.scheduler = scheduler.orElse($Schedulers$.elastic());\n"
-      "this.service = service;\n");
+      "this.service = service;\n"
+      "this.allocator = allocator.orElse($ByteBufAllocator$.DEFAULT);\n"
+  );
   p->Print(
         *vars,
         "if (!registry.isPresent()) {\n"
@@ -1024,7 +1028,7 @@ static void PrintServer(const ServiceDescriptor* service,
   // Serializer
   p->Print(
       *vars,
-      "private static final $Function$<$MessageLite$, $Payload$> serializer =\n");
+      "private final $Function$<$MessageLite$, $Payload$> serializer =\n");
   p->Indent();
   p->Print(
       *vars,
@@ -1038,7 +1042,7 @@ static void PrintServer(const ServiceDescriptor* service,
   p->Print(
     *vars,
     "int length = message.getSerializedSize();\n"
-    "$ByteBuf$ byteBuf = $ByteBufAllocator$.DEFAULT.buffer(length);\n");
+    "$ByteBuf$ byteBuf = Blocking$server_class_name$.this.allocator.buffer(length);\n");
   p->Print("try {\n");
   p->Indent();
   p->Print(
@@ -1170,6 +1174,7 @@ void GenerateClient(const ServiceDescriptor* service,
   vars["Queues"] = "reactor.util.concurrent.Queues";
   vars["RSocketRpcGeneratedMethod"] = "com.jauntsdn.rsocket.rpc.annotations.internal.GeneratedMethod";
   vars["Optional"] = "java.util.Optional";
+  vars["ByteBufAllocator"] = "io.netty.buffer.ByteBufAllocator";
 
   Printer printer(out, '$');
     string package_name = ServiceJavaPackage(service->file());
@@ -1229,6 +1234,7 @@ void GenerateServer(const ServiceDescriptor* service,
   vars["Optional"] = "java.util.Optional";
   vars["Inject"] = "javax.inject.Inject";
   vars["Named"] = "javax.inject.Named";
+  vars["ByteBufAllocator"] = "io.netty.buffer.ByteBufAllocator";
 
   Printer printer(out, '$');
     string package_name = ServiceJavaPackage(service->file());

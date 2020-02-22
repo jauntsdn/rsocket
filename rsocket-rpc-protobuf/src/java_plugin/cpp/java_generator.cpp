@@ -376,7 +376,9 @@ static void PrintClient(const ServiceDescriptor* service,
 
   p->Print(
       *vars,
-      "private final $RSocket$ rSocket;\n");
+      "private final $RSocket$ rSocket;\n"
+      "private final $ByteBufAllocator$ allocator;\n"
+  );
 
   p->Print(
         *vars,
@@ -445,11 +447,13 @@ static void PrintClient(const ServiceDescriptor* service,
 
   p->Print(
        *vars,
-       "\npublic $client_class_name$($RSocket$ rSocket, $Optional$<$MeterRegistry$> registry, $Optional$<$Tracer$> tracer) {\n");
+       "\npublic $client_class_name$($RSocket$ rSocket, $Optional$<$ByteBufAllocator$> allocator, $Optional$<$MeterRegistry$> registry, $Optional$<$Tracer$> tracer) {\n");
   p->Indent();
   p->Print(
        *vars,
-       "this.rSocket = rSocket;\n");
+       "this.rSocket = rSocket;\n"
+       "this.allocator = allocator.orElse($ByteBufAllocator$.DEFAULT);\n"
+  );
 
    // if metrics present {
   p->Print(
@@ -636,6 +640,7 @@ static void PrintClient(const ServiceDescriptor* service,
       p->Print(
           *vars,
           "$Map$<String, String> map = this.traceMap.get();\n"
+          "$ByteBufAllocator$ allocator = this.allocator;\n"
       );
       p->Print(
           *vars,
@@ -679,8 +684,8 @@ static void PrintClient(const ServiceDescriptor* service,
       p->Print(
           *vars,
           "this.started = true;\n"
-          "final $ByteBuf$ tracing = $RSocketRpcTracing$.mapToByteBuf($ByteBufAllocator$.DEFAULT, map);\n"
-          "final $ByteBuf$ metadataBuf = $RSocketRpcMetadata$.encode($ByteBufAllocator$.DEFAULT, $service_name$.$service_field_name$, $service_name$.$method_field_name$, tracing, metadata);\n"
+          "final $ByteBuf$ tracing = $RSocketRpcTracing$.mapToByteBuf(allocator, map);\n"
+          "final $ByteBuf$ metadataBuf = $RSocketRpcMetadata$.encode(allocator, $service_name$.$service_field_name$, $service_name$.$method_field_name$, tracing, metadata);\n"
           "return $ByteBufPayload$.create(data, metadataBuf);\n");
       p->Outdent();
       p->Print("} else {\n");
@@ -715,6 +720,7 @@ static void PrintClient(const ServiceDescriptor* service,
           *vars,
           "($input_type$ message, $ByteBuf$ metadata) {\n"
           "$Map$<String, String> map = this.traceMap.get();\n"
+          "$ByteBufAllocator$ allocator = this.allocator;\n"
           );
       p->Indent();
 
@@ -731,8 +737,8 @@ static void PrintClient(const ServiceDescriptor* service,
         p->Print(
             *vars,
             "final $ByteBuf$ data = serialize(message);\n"
-            "final $ByteBuf$ tracing = $RSocketRpcTracing$.mapToByteBuf($ByteBufAllocator$.DEFAULT, map);\n"
-            "final $ByteBuf$ metadataBuf = $RSocketRpcMetadata$.encode($ByteBufAllocator$.DEFAULT, $service_name$.$service_field_name$, $service_name$.$method_field_name$, tracing, metadata);\n"
+            "final $ByteBuf$ tracing = $RSocketRpcTracing$.mapToByteBuf(allocator, map);\n"
+            "final $ByteBuf$ metadataBuf = $RSocketRpcMetadata$.encode(allocator, $service_name$.$service_field_name$, $service_name$.$method_field_name$, tracing, metadata);\n"
             "tracing.release();\n"
             "metadata.release();\n"
             "return rSocket.requestStream($ByteBufPayload$.create(data, metadataBuf));\n");
@@ -756,8 +762,8 @@ static void PrintClient(const ServiceDescriptor* service,
           p->Print(
               *vars,
               "final $ByteBuf$ data = serialize(message);\n"
-              "final $ByteBuf$ tracing = $RSocketRpcTracing$.mapToByteBuf($ByteBufAllocator$.DEFAULT, map);\n"
-              "final $ByteBuf$ metadataBuf = $RSocketRpcMetadata$.encode($ByteBufAllocator$.DEFAULT, $service_name$.$service_field_name$, $service_name$.$method_field_name$, tracing, metadata);\n"
+              "final $ByteBuf$ tracing = $RSocketRpcTracing$.mapToByteBuf(allocator, map);\n"
+              "final $ByteBuf$ metadataBuf = $RSocketRpcMetadata$.encode(allocator, $service_name$.$service_field_name$, $service_name$.$method_field_name$, tracing, metadata);\n"
               "tracing.release();\n"
               "metadata.release();\n"
               "return rSocket.fireAndForget($ByteBufPayload$.create(data, metadataBuf));\n");
@@ -780,8 +786,8 @@ static void PrintClient(const ServiceDescriptor* service,
           p->Print(
               *vars,
               "final $ByteBuf$ data = serialize(message);\n"
-              "final $ByteBuf$ tracing = $RSocketRpcTracing$.mapToByteBuf($ByteBufAllocator$.DEFAULT, map);\n"
-              "final $ByteBuf$ metadataBuf = $RSocketRpcMetadata$.encode($ByteBufAllocator$.DEFAULT, $service_name$.$service_field_name$, $service_name$.$method_field_name$, tracing, metadata);\n"
+              "final $ByteBuf$ tracing = $RSocketRpcTracing$.mapToByteBuf(allocator, map);\n"
+              "final $ByteBuf$ metadataBuf = $RSocketRpcMetadata$.encode(allocator, $service_name$.$service_field_name$, $service_name$.$method_field_name$, tracing, metadata);\n"
               "tracing.release();\n"
               "metadata.release();\n"
               "return rSocket.requestResponse($ByteBufPayload$.create(data, metadataBuf));\n");
@@ -802,12 +808,12 @@ static void PrintClient(const ServiceDescriptor* service,
   // Serialize method
   p->Print(
   *vars,
-  "private static $ByteBuf$ serialize(final $MessageLite$ message) {\n");
+  "private $ByteBuf$ serialize(final $MessageLite$ message) {\n");
   p->Indent();
   p->Print(
     *vars,
     "int length = message.getSerializedSize();\n"
-    "$ByteBuf$ byteBuf = $ByteBufAllocator$.DEFAULT.buffer(length);\n");
+    "$ByteBuf$ byteBuf = this.allocator.buffer(length);\n");
   p->Print("try {\n");
   p->Indent();
   p->Print(
@@ -904,6 +910,7 @@ static void PrintServer(const ServiceDescriptor* service,
   p->Print(
       *vars,
       "private final $service_name$ service;\n"
+      "private final $ByteBufAllocator$ allocator;\n"
       "private final $Tracer$ tracer;\n");
 
   // RPC metrics
@@ -968,11 +975,14 @@ static void PrintServer(const ServiceDescriptor* service,
   p->Print(
       *vars,
       "@$Inject$\n"
-      "public $server_class_name$($service_name$ service, $Optional$<$MeterRegistry$> registry, $Optional$<$Tracer$> tracer) {\n");
+      "public $server_class_name$($service_name$ service, $Optional$<$ByteBufAllocator$> allocator, $Optional$<$MeterRegistry$> registry, $Optional$<$Tracer$> tracer) {\n"
+  );
   p->Indent();
   p->Print(
       *vars,
-      "this.service = service;\n");
+      "this.service = service;\n"
+      "this.allocator = allocator.orElse($ByteBufAllocator$.DEFAULT);\n"
+  );
 
   // if metrics present {
   p->Print(
@@ -1413,7 +1423,7 @@ static void PrintServer(const ServiceDescriptor* service,
   // Serializer
   p->Print(
       *vars,
-      "private static final $Function$<$MessageLite$, $Payload$> serializer =\n");
+      "private final $Function$<$MessageLite$, $Payload$> serializer =\n");
   p->Indent();
   p->Print(
       *vars,
@@ -1427,7 +1437,7 @@ static void PrintServer(const ServiceDescriptor* service,
   p->Print(
     *vars,
     "int length = message.getSerializedSize();\n"
-    "$ByteBuf$ byteBuf = $ByteBufAllocator$.DEFAULT.buffer(length);\n");
+    "$ByteBuf$ byteBuf = $server_class_name$.this.allocator.buffer(length);\n");
   p->Print("try {\n");
   p->Indent();
   p->Print(
