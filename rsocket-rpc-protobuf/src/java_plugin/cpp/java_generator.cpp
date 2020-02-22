@@ -631,10 +631,13 @@ static void PrintClient(const ServiceDescriptor* service,
       p->Print(
           *vars,
           "($Publisher$<$input_type$> messages, $ByteBuf$ metadata) {\n"
-          "$Map$<String, String> map = this.traceMap.get();\n"
           );
       p->Indent();
-       p->Print(
+      p->Print(
+          *vars,
+          "$Map$<String, String> map = this.traceMap.get();\n"
+      );
+      p->Print(
           *vars,
           "return rSocket.requestChannel(\n");
       p->Indent();
@@ -671,7 +674,8 @@ static void PrintClient(const ServiceDescriptor* service,
       p->Indent();
       p->Print(
           *vars,
-          "final $ByteBuf$ metadataBuf = $RSocketRpcMetadata$.encode($ByteBufAllocator$.DEFAULT, $service_name$.$service_field_name$, $service_name$.$method_field_name$, metadata);\n"
+          "final $ByteBuf$ tracing = $RSocketRpcTracing$.mapToByteBuf($ByteBufAllocator$.DEFAULT, map);\n"
+          "final $ByteBuf$ metadataBuf = $RSocketRpcMetadata$.encode($ByteBufAllocator$.DEFAULT, $service_name$.$service_field_name$, $service_name$.$method_field_name$, tracing, metadata);\n"
           "return $ByteBufPayload$.create(data, metadataBuf);\n");
       p->Outdent();
       p->Print("} else {\n");
