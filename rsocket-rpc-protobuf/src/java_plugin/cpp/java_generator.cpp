@@ -664,16 +664,21 @@ static void PrintClient(const ServiceDescriptor* service,
       p->Indent();
       p->Print(
           *vars,
+          "private boolean started;\n\n"
+      );
+      p->Print(
+          *vars,
           "@$Override$\n"
           "public $Payload$ apply($MessageLite$ message) {\n");
       p->Indent();
       p->Print(
           *vars,
           "$ByteBuf$ data = serialize(message);\n"
-          "if (once.compareAndSet(false, true)) {\n");
+          "if (!this.started) {\n");
       p->Indent();
       p->Print(
           *vars,
+          "this.started = true;\n"
           "final $ByteBuf$ tracing = $RSocketRpcTracing$.mapToByteBuf($ByteBufAllocator$.DEFAULT, map);\n"
           "final $ByteBuf$ metadataBuf = $RSocketRpcMetadata$.encode($ByteBufAllocator$.DEFAULT, $service_name$.$service_field_name$, $service_name$.$method_field_name$, tracing, metadata);\n"
           "return $ByteBufPayload$.create(data, metadataBuf);\n");
