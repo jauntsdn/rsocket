@@ -1006,6 +1006,10 @@ static void PrintServer(const ServiceDescriptor* service,
       "} else {\n"
   );
   p->Indent();
+  p->Print(
+       *vars,
+       "$MeterRegistry$ r = registry.get();\n"
+  );
   for (int i = 0; i < service->method_count(); ++i) {
     const MethodDescriptor* method = service->method(i);
     (*vars)["lower_method_name"] = LowerMethodName(method);
@@ -1013,7 +1017,7 @@ static void PrintServer(const ServiceDescriptor* service,
 
     p->Print(
         *vars,
-        "this.$lower_method_name$Metrics = $RSocketRpcMetrics$.timed(registry.get(), \"rsocket.server\", \"service\", $service_name$.$service_field_name$, \"method\", $service_name$.$method_field_name$);\n");
+        "this.$lower_method_name$Metrics = $RSocketRpcMetrics$.timed(r, \"rsocket.server\", \"service\", $service_name$.$service_field_name$, \"method\", $service_name$.$method_field_name$);\n");
   }
 
   p->Outdent();
@@ -1048,7 +1052,8 @@ static void PrintServer(const ServiceDescriptor* service,
     p->Indent();
     p->Print(
         *vars,
-        "this.tracer = tracer.get();\n"
+        "$Tracer$ t = tracer.get();\n"
+        "this.tracer = t;\n"
     );
     for (int i = 0; i < service->method_count(); ++i) {
       const MethodDescriptor* method = service->method(i);
@@ -1057,7 +1062,7 @@ static void PrintServer(const ServiceDescriptor* service,
 
       p->Print(
           *vars,
-          "this.$lower_method_name$Trace = $RSocketRpcTracing$.traceAsChild(this.tracer, $service_name$.$method_field_name$, $Tag$.of(\"rsocket.service\", $service_name$.$service_field_name$), $Tag$.of(\"rsocket.rpc.role\", \"server\"), $Tag$.of(\"rsocket.rpc.version\", \"$version$\"));\n");
+          "this.$lower_method_name$Trace = $RSocketRpcTracing$.traceAsChild(t, $service_name$.$method_field_name$, $Tag$.of(\"rsocket.service\", $service_name$.$service_field_name$), $Tag$.of(\"rsocket.rpc.role\", \"server\"), $Tag$.of(\"rsocket.rpc.version\", \"$version$\"));\n");
     }
     p->Outdent();
     p->Print("}\n\n");
