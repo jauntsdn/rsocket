@@ -655,9 +655,6 @@ static void PrintClient(const ServiceDescriptor* service,
           *vars,
           "@$Override$\n"
           "public $Publisher$<$Payload$> get() {\n");
-      p->Print(
-          *vars,
-          "final $AtomicBoolean$ once = new $AtomicBoolean$(false);\n\n");
       p->Indent();
       p->Print(
           *vars,
@@ -686,6 +683,8 @@ static void PrintClient(const ServiceDescriptor* service,
           "this.started = true;\n"
           "final $ByteBuf$ tracing = $RSocketRpcTracing$.mapToByteBuf(allocator, map);\n"
           "final $ByteBuf$ metadataBuf = $RSocketRpcMetadata$.encode(allocator, $service_name$.$service_field_name$, $service_name$.$method_field_name$, tracing, metadata);\n"
+          "tracing.release();\n"
+          "metadata.release();\n"
           "return $ByteBufPayload$.create(data, metadataBuf);\n");
       p->Outdent();
       p->Print("} else {\n");
