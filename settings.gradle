@@ -30,7 +30,6 @@ pluginManagement {
 rootProject.name = 'rsocket'
 
 include 'rsocket-core'
-include 'rsocket-load-balancer'
 include 'rsocket-metrics'
 include 'rsocket-test'
 include 'rsocket-transport-netty'
