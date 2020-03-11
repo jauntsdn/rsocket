@@ -21,20 +21,18 @@ public class ErrorFrameFlyweight {
   public static final int INVALID = 0x00000204;
 
   public static ByteBuf encode(
-      ByteBufAllocator allocator, int streamId, Throwable t, ByteBuf data) {
+      ByteBufAllocator allocator, int streamId, int errorCode, String errorMessage) {
     ByteBuf header = FrameHeaderFlyweight.encode(allocator, streamId, FrameType.ERROR, 0);
-
-    int errorCode = errorCodeFromException(t);
+    String msg = errorMessage == null ? "" : errorMessage;
+    ByteBuf msgBuf = ByteBufUtil.writeUtf8(allocator, msg);
 
     header.writeInt(errorCode);
 
-    return allocator.compositeBuffer(2).addComponents(true, header, data);
+    return allocator.compositeBuffer(2).addComponents(true, header, msgBuf);
   }
 
   public static ByteBuf encode(ByteBufAllocator allocator, int streamId, Throwable t) {
-    String message = t.getMessage() == null ? "" : t.getMessage();
-    ByteBuf data = ByteBufUtil.writeUtf8(allocator, message);
-    return encode(allocator, streamId, t, data);
+    return encode(allocator, streamId, errorCodeFromException(t), t.getMessage());
   }
 
   public static int errorCodeFromException(Throwable t) {
