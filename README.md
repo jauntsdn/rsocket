@@ -1,23 +1,21 @@
 # RSocket
 
-[RSocket](https://rsocket.io) is a binary session layer (L5) protocol & RPC on top of [Protocol Buffers](https://developers.google.com/protocol-buffers) for use on byte stream transports such as TCP, WebSockets and Http2.
-
-* Rich symmetric (initiated by both Client and Server) interactions via async message passing, with flow control corresponding to [Reactive Streams](https://github.com/reactive-streams/reactive-streams-jvm) specification:
+[RSocket](https://rsocket.io) is a binary session layer protocol for use on byte stream transports such as TCP, WebSockets and Http2.
+ Accompanied by RSocket-RPC - code generation based remote procedure call system on top of [Protocol Buffers](https://developers.google.com/protocol-buffers).
+* Rich symmetric (initiated by both Client and Server) interactions via async message passing, with flow control according to [Reactive Streams](https://github.com/reactive-streams/reactive-streams-jvm) specification:
 ```
   request/channel (bidirectional stream)  
   request/stream (stream of many)  
   request/response (stream of 1)  
   fire-and-forget (no response)  
 ```
-* Transport agnostic: RSockets can be carried by any connection-oriented protocol with reliable byte streams delivery - TCP, Websockets & Http2 are available OOTB 
-* Built-in rate limiting with requests lease
+* Transport agnostic: RSockets can be carried by any connection-oriented protocol with reliable byte streams delivery - TCP, Websockets are available OOTB 
+* Concurrency limiting with requests leasing
 * Automatic session resumption
-* Efficient implementation of efficient protocol:
-    * Stable and solid foundation by [netty](https://github.com/netty/netty) and [projectreactor](https://github.com/reactor/reactor-core): non-blocking IO, plus composable async operations with explicit flow control and error handling enabled excellent latency characteristics
+* Efficient implementation:
+    * [Netty](https://github.com/netty/netty) and [ProjectReactor](https://github.com/reactor/reactor-core) for non-blocking IO and flow control
     * Zero-copy message handling
     * Small core library footprint: suitable for both server and client/embedded applications
-
-Runnable example is available at [rsocket-showcase](https://github.com/jauntsdn/rsocket-showcases)
     
 Server
 ```
@@ -49,12 +47,11 @@ interface RSocket extends Availability, Closeable {
 }
 ```
 
-## RPC
+## RSocket-RPC
 
-Think GRPC (Clients & Servers stubs code generated from IDL with `Protocol Buffer` messages instead of plain bytes) with all features of RSocket: less chatty transports, request message-level flow control,
-rate-limiting with request leasing, automatic session resumption - without leaking into application level APIs.   
-
-Runnable example is available at [rsocket-rpc-showcase](https://github.com/jauntsdn/rsocket-showcases)
+Codegeneration based RPC system (Clients & Servers stubs code is generated from service and `Protocol Buffer` messages definition files) 
+with all features of RSocket: pluggable transports, request message-level flow control,
+concurrency limiting with request leasing, automatic session resumption.   
 
 IDL
 ```
@@ -104,11 +101,11 @@ cd rsocket-rpc-protobuf
 ```
 ## Examples 
 
-Runnable examples are available at [rsocket-showcases](https://github.com/jauntsdn/rsocket-showcases) project
+Runnable examples are available at [rsocket-showcases](https://github.com/jauntsdn/rsocket-showcases) repository.
 
 ## Binaries
 
-Releases are available via Maven Central.
+Releases will be available via Maven Central.
 
 ##### RSocket
 
