@@ -17,6 +17,7 @@
 plugins {
     id 'java-library'
     id 'maven-publish'
+    id 'signing'
 }
 
 dependencies {
@@ -28,4 +29,4 @@ dependencies {
     testImplementation project(':rsocket-test')
 }
 
-description = 'Transparent Metrics exposure to Micrometer'
+description = "RSocket integration for Micrometer metrics"

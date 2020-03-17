@@ -1,10 +1,11 @@
 plugins {
     id 'java-library'
     id 'maven-publish'
+    id 'signing'
     id 'com.google.protobuf'
 }
 
-description = 'RSocket RPC Protobf IDL'
+description = "RSocket-RPC compiler Protobuf definitions"
 
 protobuf {
     generateProtoTasks {

@@ -17,6 +17,7 @@
 plugins {
     id 'java-library'
     id 'maven-publish'
+    id 'signing'
     id 'io.morethan.jmhreport'
     id 'me.champeau.gradle.jmh'
 }
@@ -29,6 +30,6 @@ dependencies {
     compileOnly 'com.google.code.findbugs:jsr305'
 }
 
-description = "Core functionality for the RSocket library"
+description = "RSocket core library"
 
 apply from: 'jmh.gradle'

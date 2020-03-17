@@ -1,5 +1,6 @@
 subprojects {
     plugins.withType(MavenPublishPlugin) {
+
         publishing {
             publications {
                 maven(MavenPublication) {
@@ -11,12 +12,12 @@ subprojects {
                     }
 
                     pom {
+                        groupId = project.group
                         name = project.name
                         afterEvaluate {
                             description = project.description
                         }
-                        groupId = project.group
-                        url = 'https://rsocket.jauntsdn.com'
+                        url = 'https://jauntsdn.com'
                         licenses {
                             license {
                                 name = "The Apache Software License, Version 2.0"
@@ -45,6 +46,29 @@ subprojects {
                             }
                         }
                     }
+                }
+            }
+
+            repositories {
+                maven {
+                    name = "sonatype"
+                    def releasesRepoUrl = "https://oss.sonatype.org/service/local/staging/deploy/maven2/"
+                    def snapshotsRepoUrl = "https://oss.sonatype.org/content/repositories/snapshots/"
+                    url = version.endsWith('SNAPSHOT') ? snapshotsRepoUrl : releasesRepoUrl
+                    credentials {
+                        username = "${ossrhUsername}"
+                        password = "${ossrhPassword}"
+                    }
+                }
+            }
+        }
+
+        plugins.withType(SigningPlugin) {
+            signing {
+                sign publishing.publications.maven
+                required {
+                    gradle.taskGraph.allTasks
+                            .any { it.name.contains("publishMavenPublicationToSonatypeRepository") }
                 }
             }
         }

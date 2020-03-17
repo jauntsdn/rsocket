@@ -1,9 +1,10 @@
 plugins {
     id 'java-library'
     id 'maven-publish'
+    id 'signing'
 }
 
-description = 'RSocket RPC Library'
+description = "RSocket-RPC core library"
 
 dependencies {
     api project(':rsocket-core')

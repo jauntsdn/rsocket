@@ -32,4 +32,4 @@ dependencies {
     implementation 'junit:junit'
 }
 
-description = 'Test utilities for RSocket projects'
+description = "RSocket test utilities"

@@ -16,9 +16,10 @@
 plugins {
     id 'java-platform'
     id 'maven-publish'
+    id 'signing'
 }
 
-description = 'RSocket Bill of materials.'
+description = "RSocket bill of materials"
 
 apply from: '../gradle/bom.gradle'
 

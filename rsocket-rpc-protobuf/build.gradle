@@ -1,12 +1,13 @@
 plugins {
 	id 'java-library'
 	id 'maven-publish'
+	id 'signing'
 	id 'com.google.osdetector'
 	id 'cpp'
 	id 'com.palantir.git-version'
 }
 
-description = 'RSocket RPC Protobuf Generator'
+description = "RSocket-RPC compiler"
 
 version = projectVersion(project)
 
@@ -147,50 +148,71 @@ artifacts {
   }
 }
 
-plugins.withType(MavenPublishPlugin) {
-  publishing {
-	publications {
-	  maven(MavenPublication) {
-		groupId project.group
+publishing {
+		publications {
+			maven(MavenPublication) {
+				groupId project.group
 
-		artifact(pathToPlugin) {
-		  classifier osdetector.os + "-" + osdetector.arch
-		  builtBy buildArtifacts
+				artifact(pathToPlugin) {
+					classifier osdetector.os + "-" + osdetector.arch
+					builtBy buildArtifacts
+				}
+
+				pom.withXml {
+					asNode().':version' + {
+						resolveStrategy = DELEGATE_FIRST
+
+						name project.name
+						description project.description
+						url 'https://jauntsdn.com'
+
+						licenses {
+							license {
+								name 'The Apache Software License, Version 2.0'
+								url 'http://www.apache.org/license/LICENSE-2.0.txt'
+							}
+						}
+
+						developers {
+							developer {
+								id 'mostroverkhov'
+								name 'Maksym Ostroverkhov'
+								email 'mostroverkhov@gmail.com'
+							}
+						}
+
+						scm {
+							connection 'scm:git:https://github.com/jauntsdn/rsocket.git'
+							developerConnection 'scm:git:https://github.com/jauntsdn/rsocket.git'
+							url 'https://github.com/jauntsdn/rsocket'
+						}
+					}
+				}
+			}
 		}
 
-		pom.withXml {
-		  asNode().':version' + {
-			resolveStrategy = DELEGATE_FIRST
-
-			name project.name
-			description project.description
-			url 'https://jauntsdn.com'
-
-			licenses {
-			  license {
-				name 'The Apache Software License, Version 2.0'
-				url 'http://www.apache.org/license/LICENSE-2.0.txt'
-			  }
+		repositories {
+			maven {
+				name = "sonatype"
+				def releasesRepoUrl = "https://oss.sonatype.org/service/local/staging/deploy/maven2/"
+				def snapshotsRepoUrl = "https://oss.sonatype.org/content/repositories/snapshots/"
+				url = version.endsWith('SNAPSHOT') ? snapshotsRepoUrl : releasesRepoUrl
+				credentials {
+					username = "${ossrhUsername}"
+					password = "${ossrhPassword}"
+				}
 			}
-
-			developers {
-			  developer {
-				id 'mostroverkhov'
-				name 'Maksym Ostroverkhov'
-				email 'mostroverkhov@gmail.com'
-			  }
-			}
-
-			scm {
-			  connection 'scm:git:https://github.com/jauntsdn/rsocket.git'
-			  developerConnection 'scm:git:https://github.com/jauntsdn/rsocket.git'
-			  url 'https://github.com/jauntsdn/rsocket'
-			}
-		  }
 		}
-	  }
 	}
-  }
+
+plugins.withType(SigningPlugin) {
+	signing {
+		sign publishing.publications.maven
+		required {
+			gradle.taskGraph.allTasks
+					.any { it.name.contains("publishMavenPublicationToSonatypeRepository") }
+		}
+	}
 }
 
 def projectVersion(project) {

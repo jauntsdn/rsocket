@@ -81,10 +81,6 @@ subprojects {
             }
         }
 
-        tasks.named("javadoc").configure {
-            onlyIf { System.getenv('SKIP_RELEASE') != "true" }
-        }
-
         test {
             useJUnitPlatform()
 
@@ -105,6 +101,11 @@ subprojects {
         task javadocJar(type: Jar, dependsOn: javadoc) {
             classifier 'javadoc'
             from javadoc.destinationDir
+        }
+
+        artifacts {
+            archives sourcesJar
+            archives javadocJar
         }
     }
 
