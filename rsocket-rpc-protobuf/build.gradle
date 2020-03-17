@@ -11,6 +11,8 @@ description = "RSocket-RPC compiler"
 
 version = projectVersion(project)
 
+println "Building module ${name}:${version}"
+
 def pluginPrefix = "rsocket-rpc-protobuf-${osdetector.os}-${osdetector.arch}"
 def pluginName = "${pluginPrefix}.exe"
 def artifactStagingPath = "$buildDir/artifacts" as File

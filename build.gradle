@@ -41,6 +41,8 @@ subprojects {
 
     version = projectVersion(project)
 
+    println "Building module ${project.name}:${version}"
+
     repositories {
         mavenCentral()
     }
