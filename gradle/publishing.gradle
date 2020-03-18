@@ -49,6 +49,18 @@ subprojects {
                 }
             }
 
+            task publishToSonatype {
+                finalizedBy "publishMavenPublicationToSonatypeRepository"
+                doLast {
+                    println "\nPublishing ${project.name} artifacts to Sonatype"
+                    println "Sonatype repository url: ${repositories.sonatype.url}\n"
+                    publishing.publications.maven.publishableArtifacts
+                            .collect { it.file.name}
+                            .sort { it }
+                            .each { println "[${project.name}] Uploading artifact..................${it}"}
+                }
+            }
+
             repositories {
                 maven {
                     name = "sonatype"
