@@ -49,27 +49,30 @@ subprojects {
                 }
             }
 
-            task publishToSonatype {
-                finalizedBy "publishMavenPublicationToSonatypeRepository"
-                doLast {
-                    println "\nPublishing ${project.name} artifacts to Sonatype"
-                    println "Sonatype repository url: ${repositories.sonatype.url}\n"
-                    publishing.publications.maven.publishableArtifacts
-                            .collect { it.file.name}
-                            .sort { it }
-                            .each { println "[${project.name}] Uploading artifact..................${it}"}
-                }
-            }
+            if (project.hasProperty("ossrhUsername") && project.hasProperty("ossrhPassword")) {
 
-            repositories {
-                maven {
-                    name = "sonatype"
-                    def releasesRepoUrl = "https://oss.sonatype.org/service/local/staging/deploy/maven2/"
-                    def snapshotsRepoUrl = "https://oss.sonatype.org/content/repositories/snapshots/"
-                    url = version.endsWith('SNAPSHOT') ? snapshotsRepoUrl : releasesRepoUrl
-                    credentials {
-                        username = "${ossrhUsername}"
-                        password = "${ossrhPassword}"
+                task publishToSonatype {
+                    finalizedBy "publishMavenPublicationToSonatypeRepository"
+                    doLast {
+                        println "\nPublishing ${project.name} artifacts to Sonatype"
+                        println "Sonatype repository url: ${repositories.sonatype.url}\n"
+                        publishing.publications.maven.publishableArtifacts
+                                .collect { it.file.name}
+                                .sort { it }
+                                .each { println "[${project.name}] Uploading artifact..................${it}"}
+                    }
+                }
+
+                repositories {
+                    maven {
+                        name = "sonatype"
+                        def releasesRepoUrl = "https://oss.sonatype.org/service/local/staging/deploy/maven2/"
+                        def snapshotsRepoUrl = "https://oss.sonatype.org/content/repositories/snapshots/"
+                        url = version.endsWith('SNAPSHOT') ? snapshotsRepoUrl : releasesRepoUrl
+                        credentials {
+                            username = project.property("ossrhUsername")
+                            password = project.property("ossrhPassword")
+                        }
                     }
                 }
             }
