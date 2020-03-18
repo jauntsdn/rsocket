@@ -121,6 +121,12 @@ buildScan {
     termsOfServiceAgree = 'yes'
 }
 
+task printProjectVersion {
+    doLast {
+        println "Project version: ${projectVersion(project)}"
+    }
+}
+
 def jdkJavaDoc() {
     def version = JavaVersion.current()
     def majorVersion = version.majorVersion

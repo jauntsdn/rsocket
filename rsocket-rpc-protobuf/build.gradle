@@ -9,6 +9,8 @@ plugins {
 
 description = "RSocket-RPC compiler"
 
+useParentArtifactCoordinates()
+
 version = projectVersion(project)
 
 println "Building module ${name}:${version}"
@@ -193,6 +195,20 @@ publishing {
 			}
 		}
 
+	if (project.hasProperty("ossrhUsername") && project.hasProperty("ossrhPassword")) {
+
+		task publishToSonatype {
+			finalizedBy "publishMavenPublicationToSonatypeRepository"
+			doLast {
+				println "\nPublishing ${project.name} artifacts to Sonatype"
+				println "Sonatype repository url: ${repositories.sonatype.url}\n"
+				publishing.publications.maven.publishableArtifacts
+						.collect { it.file.name}
+						.sort { it }
+						.each { println "[${project.name}] Uploading artifact..................${it}"}
+			}
+		}
+
 		repositories {
 			maven {
 				name = "sonatype"
@@ -200,12 +216,13 @@ publishing {
 				def snapshotsRepoUrl = "https://oss.sonatype.org/content/repositories/snapshots/"
 				url = version.endsWith('SNAPSHOT') ? snapshotsRepoUrl : releasesRepoUrl
 				credentials {
-					username = "${ossrhUsername}"
-					password = "${ossrhPassword}"
+					username = poject.property("ossrhUsername")
+					password = poject.property("ossrhPassword")
 				}
 			}
 		}
 	}
+}
 
 plugins.withType(SigningPlugin) {
 	signing {
@@ -214,6 +231,12 @@ plugins.withType(SigningPlugin) {
 			gradle.taskGraph.allTasks
 					.any { it.name.contains("publishMavenPublicationToSonatypeRepository") }
 		}
+	}
+}
+
+task printProjectVersion {
+	doLast {
+		println "Project version: ${version}"
 	}
 }
 
@@ -229,4 +252,14 @@ def projectVersion(project) {
 		}
 	}
 	return project.version + versionSuffix
+}
+
+def useParentArtifactCoordinates() {
+	def parent = java.nio.file.Paths.get("${project.rootDir}").parent.toFile()
+	new FileReader(new File(parent, "gradle.properties")).with {
+		def properties = new Properties()
+		properties.load(it)
+		project.group = properties.get("group")
+		project.version = properties.get("version")
+	}
 }
