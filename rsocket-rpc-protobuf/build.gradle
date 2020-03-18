@@ -9,6 +9,8 @@ plugins {
 
 description = "RSocket-RPC compiler"
 
+useParentArtifactCoordinates()
+
 version = projectVersion(project)
 
 println "Building module ${name}:${version}"
@@ -247,4 +249,14 @@ def projectVersion(project) {
 		}
 	}
 	return project.version + versionSuffix
+}
+
+def useParentArtifactCoordinates() {
+	def parent = java.nio.file.Paths.get("${project.rootDir}").parent.toFile()
+	new FileReader(new File(parent, "gradle.properties")).with {
+		def properties = new Properties()
+		properties.load(it)
+		project.group = properties.get("group")
+		project.version = properties.get("version")
+	}
 }
