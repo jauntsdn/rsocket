@@ -29,10 +29,10 @@ import java.util.Objects;
  * Micrometer metrics about them.
  *
  * <p>The metric is called {@code rsocket.frame} and is tagged with {@code connection.type} ({@link
- * Type}), {@code frame.type} ({@link FrameType}), and any additional configured tags. {@code
- * rsocket.duplex.connection.close} and {@code rsocket.duplex.connection.dispose} metrics, tagged
- * with {@code connection.type} ({@link Type}) and any additional configured tags are also
- * collected.
+ * DuplexConnectionInterceptor.Type}), {@code frame.type} ({@link FrameType}), and any additional
+ * configured tags. {@code rsocket.duplex.connection.close} and {@code
+ * rsocket.duplex.connection.dispose} metrics, tagged with {@code connection.type} ({@link
+ * DuplexConnectionInterceptor.Type}) and any additional configured tags are also collected.
  *
  * @see <a href="https://micrometer.io">Micrometer</a>
  */

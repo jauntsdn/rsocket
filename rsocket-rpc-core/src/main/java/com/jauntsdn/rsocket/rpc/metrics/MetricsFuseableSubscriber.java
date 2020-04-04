@@ -6,12 +6,12 @@ import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Timer;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import javax.annotation.Nullable;
 import org.reactivestreams.Subscription;
 import reactor.core.CoreSubscriber;
 import reactor.core.Fuseable;
 import reactor.core.Fuseable.QueueSubscription;
 import reactor.core.publisher.Operators;
-import reactor.util.annotation.Nullable;
 import reactor.util.context.Context;
 
 public class MetricsFuseableSubscriber<T> extends AtomicBoolean
