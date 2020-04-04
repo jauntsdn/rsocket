@@ -81,6 +81,8 @@ subprojects {
                 links jdkJavaDoc()
                 links 'https://projectreactor.io/docs/core/release/api/'
                 links 'https://netty.io/4.1/api/'
+
+                addStringOption('Xdoclint:none', '-quiet')
             }
         }
 
