@@ -17,32 +17,33 @@
 package com.jauntsdn.rsocket.integration;
 
 import com.jauntsdn.rsocket.AbstractRSocket;
-import com.jauntsdn.rsocket.Closeable;
 import com.jauntsdn.rsocket.Payload;
 import com.jauntsdn.rsocket.RSocketFactory;
 import com.jauntsdn.rsocket.exceptions.ApplicationErrorException;
 import com.jauntsdn.rsocket.transport.ClientTransport;
 import com.jauntsdn.rsocket.transport.ServerTransport;
 import com.jauntsdn.rsocket.transport.netty.client.TcpClientTransport;
+import com.jauntsdn.rsocket.transport.netty.server.CloseableChannel;
 import com.jauntsdn.rsocket.transport.netty.server.TcpServerTransport;
 import com.jauntsdn.rsocket.util.DefaultPayload;
+import java.net.InetSocketAddress;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import org.junit.Test;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 public class TestingStreaming {
-  private Supplier<ServerTransport<? extends Closeable>> serverSupplier =
-      () -> TcpServerTransport.create("localhost", 9888);
+  private Supplier<ServerTransport<CloseableChannel>> serverSupplier =
+      () -> TcpServerTransport.create("localhost", 0);
 
-  private Supplier<ClientTransport> clientSupplier =
-      () -> TcpClientTransport.create("localhost", 9888);
+  private Function<InetSocketAddress, ClientTransport> clientSupplier = TcpClientTransport::create;
 
   @Test(expected = ApplicationErrorException.class)
   public void testRangeButThrowException() {
-    Closeable server = null;
+    CloseableChannel server = null;
     try {
       server =
           RSocketFactory.receive()
@@ -76,7 +77,8 @@ public class TestingStreaming {
               .start()
               .block();
 
-      Flux.range(1, 6).flatMap(i -> consumer("connection number -> " + i)).blockLast();
+      InetSocketAddress address = server.address();
+      Flux.range(1, 6).flatMap(i -> consumer(address)).blockLast();
       System.out.println("here");
 
     } finally {
@@ -88,7 +90,7 @@ public class TestingStreaming {
 
   @Test
   public void testRangeOfConsumers() {
-    Closeable server = null;
+    CloseableChannel server = null;
     try {
       server =
           RSocketFactory.receive()
@@ -116,7 +118,8 @@ public class TestingStreaming {
               .start()
               .block();
 
-      Flux.range(1, 6).flatMap(i -> consumer("connection number -> " + i)).blockLast();
+      InetSocketAddress address = server.address();
+      Flux.range(1, 6).flatMap(i -> consumer(address)).blockLast();
       System.out.println("here");
 
     } finally {
@@ -126,10 +129,10 @@ public class TestingStreaming {
     }
   }
 
-  private Flux<Payload> consumer(String s) {
+  private Flux<Payload> consumer(InetSocketAddress address) {
     return RSocketFactory.connect()
         .errorConsumer(Throwable::printStackTrace)
-        .transport(clientSupplier)
+        .transport(clientSupplier.apply(address))
         .start()
         .flatMapMany(
             rSocket -> {
@@ -142,7 +145,7 @@ public class TestingStreaming {
 
   @Test
   public void testSingleConsumer() {
-    Closeable server = null;
+    CloseableChannel server = null;
     try {
       server =
           RSocketFactory.receive()
@@ -169,7 +172,8 @@ public class TestingStreaming {
               .start()
               .block();
 
-      consumer("1").blockLast();
+      InetSocketAddress address = server.address();
+      consumer(address).blockLast();
 
     } finally {
       if (server != null) {
