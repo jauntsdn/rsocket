@@ -216,8 +216,8 @@ publishing {
 				def snapshotsRepoUrl = "https://oss.sonatype.org/content/repositories/snapshots/"
 				url = version.endsWith('SNAPSHOT') ? snapshotsRepoUrl : releasesRepoUrl
 				credentials {
-					username = poject.property("ossrhUsername")
-					password = poject.property("ossrhPassword")
+					username = project.property("ossrhUsername")
+					password = project.property("ossrhPassword")
 				}
 			}
 		}

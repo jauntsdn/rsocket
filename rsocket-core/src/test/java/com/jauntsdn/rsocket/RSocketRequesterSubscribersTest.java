@@ -77,7 +77,7 @@ class RSocketRequesterSubscribersTest {
   @MethodSource("allInteractions")
   void multiSubscriber(Function<RSocket, Publisher<?>> interaction) {
     RSocket multiSubsRSocket = new MultiSubscriberRSocket(rSocketRequester);
-    Flux<?> response = Flux.from(interaction.apply(multiSubsRSocket)).take(Duration.ofMillis(10));
+    Flux<?> response = Flux.from(interaction.apply(multiSubsRSocket)).take(Duration.ofMillis(50));
     StepVerifier.create(response).expectComplete().verify(Duration.ofSeconds(5));
     StepVerifier.create(response).expectComplete().verify(Duration.ofSeconds(5));
 
@@ -87,7 +87,7 @@ class RSocketRequesterSubscribersTest {
   @ParameterizedTest
   @MethodSource("allInteractions")
   void singleSubscriber(Function<RSocket, Publisher<?>> interaction) {
-    Flux<?> response = Flux.from(interaction.apply(rSocketRequester)).take(Duration.ofMillis(10));
+    Flux<?> response = Flux.from(interaction.apply(rSocketRequester)).take(Duration.ofMillis(50));
     StepVerifier.create(response).expectComplete().verify(Duration.ofSeconds(5));
     StepVerifier.create(response)
         .expectError(IllegalStateException.class)

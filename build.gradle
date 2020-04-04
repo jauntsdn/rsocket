@@ -72,6 +72,14 @@ subprojects {
     plugins.withType(JavaPlugin) {
         compileJava {
             sourceCompatibility = 1.8
+            targetCompatibility = 1.8
+
+            options.compilerArgs << '-XDignore.symbol.file'
+            if (!JavaVersion.current().isJava11Compatible()) {
+                options.fork = true
+                options.forkOptions.executable = 'javac'
+            }
+
             dependsOn 'googleJavaFormat'
         }
 
@@ -80,6 +88,8 @@ subprojects {
                 links jdkJavaDoc()
                 links 'https://projectreactor.io/docs/core/release/api/'
                 links 'https://netty.io/4.1/api/'
+
+                addStringOption('Xdoclint:none', '-quiet')
             }
         }
 
