@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/jauntsdn/rsocket.svg?branch=develop)](https://travis-ci.org/jauntsdn/rsocket) ![Maven Central](https://img.shields.io/maven-central/v/com.jauntsdn.rsocket/rsocket-core)
+
 # RSocket
 
 [RSocket](https://rsocket.io) is a binary session layer protocol for use on byte stream transports such as TCP, WebSockets and Http2.
@@ -113,7 +115,7 @@ Bill of materials
 ```groovy
 dependencyManagement {
         imports {
-            mavenBom "com.jauntsdn.rsocket:rsocket-bom:0.9.1"
+            mavenBom "com.jauntsdn.rsocket:rsocket-bom:0.9.2"
         }
 }
 ```
@@ -132,7 +134,7 @@ Bill of materials
 ```groovy
 dependencyManagement {
         imports {
-            mavenBom "com.jauntsdn.rsocket:rsocket-rpc-bom:0.9.1"
+            mavenBom "com.jauntsdn.rsocket:rsocket-rpc-bom:0.9.2"
         }
 }
 ```
