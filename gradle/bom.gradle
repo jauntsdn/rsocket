@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-ext.removeScope = { pom ->
+ext.removeDependencyScope = { pom ->
     pom.withXml {
         asNode().dependencyManagement.first().dependencies.first().each {
             dep ->
@@ -28,8 +28,8 @@ ext.removeScope = { pom ->
     }
 }
 
-ext.bomModules = { parent ->
+ext.managedDependencyModules = { parent ->
     parent.subprojects
-            .findAll { !it.name.endsWith("bom")}
+            .findAll { !it.name.endsWith("bom") && !it.name.endsWith("test")}
             .sort { "$it.name" }
 }

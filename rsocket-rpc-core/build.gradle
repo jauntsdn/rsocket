@@ -12,4 +12,6 @@ dependencies {
     api 'javax.annotation:javax.annotation-api'
     api 'io.micrometer:micrometer-core'
     api 'io.opentracing:opentracing-api'
+
+    compileOnly 'com.google.code.findbugs:jsr305'
 }

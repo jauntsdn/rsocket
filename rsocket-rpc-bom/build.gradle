@@ -30,7 +30,7 @@ dependencies {
     api platform("io.netty:netty-bom:${nettyBomVersion}")
 
     constraints {
-        bomModules(parent).each { module -> api module }
+        managedDependencyModules(parent).each { module -> api module }
 
         api "org.slf4j:slf4j-api:${slf4jVersion}"
         api "javax.inject:javax.inject:${javaxVersion}"
@@ -45,7 +45,7 @@ publishing {
         maven(MavenPublication) {
             from components.javaPlatform
             // remove scope information from published BOM, except imported poms
-            removeScope(pom)
+            removeDependencyScope(pom)
         }
     }
 }

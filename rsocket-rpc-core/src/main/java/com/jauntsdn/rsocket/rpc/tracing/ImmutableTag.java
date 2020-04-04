@@ -2,8 +2,8 @@ package com.jauntsdn.rsocket.rpc.tracing;
 
 import static java.util.Objects.requireNonNull;
 
-import io.micrometer.core.lang.Nullable;
 import java.util.Objects;
+import javax.annotation.Nullable;
 
 class ImmutableTag implements Tag {
   private String key;

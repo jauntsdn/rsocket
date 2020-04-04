@@ -105,7 +105,7 @@ Runnable examples are available at [rsocket-showcases](https://github.com/jaunts
 
 ## Binaries
 
-Releases will be available via Maven Central.
+Releases are available via Maven Central.
 
 ##### RSocket
 
@@ -113,7 +113,7 @@ Bill of materials
 ```groovy
 dependencyManagement {
         imports {
-            mavenBom "com.jauntsdn.rsocket:rsocket-bom:<TBD>"
+            mavenBom "com.jauntsdn.rsocket:rsocket-bom:0.9.1"
         }
 }
 ```
@@ -132,7 +132,7 @@ Bill of materials
 ```groovy
 dependencyManagement {
         imports {
-            mavenBom "com.jauntsdn.rsocket:rsocket-rpc-bom:<TBD>"
+            mavenBom "com.jauntsdn.rsocket:rsocket-rpc-bom:0.9.1"
         }
 }
 ```

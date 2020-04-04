@@ -72,6 +72,14 @@ subprojects {
     plugins.withType(JavaPlugin) {
         compileJava {
             sourceCompatibility = 1.8
+            targetCompatibility = 1.8
+
+            options.compilerArgs << '-XDignore.symbol.file'
+            if (!JavaVersion.current().isJava11Compatible()) {
+                options.fork = true
+                options.forkOptions.executable = 'javac'
+            }
+
             dependsOn 'googleJavaFormat'
         }
 
@@ -80,6 +88,8 @@ subprojects {
                 links jdkJavaDoc()
                 links 'https://projectreactor.io/docs/core/release/api/'
                 links 'https://netty.io/4.1/api/'
+
+                addStringOption('Xdoclint:none', '-quiet')
             }
         }
 
@@ -121,6 +131,12 @@ buildScan {
     termsOfServiceAgree = 'yes'
 }
 
+task printProjectVersion {
+    doLast {
+        println "Project version: ${projectVersion(project)}"
+    }
+}
+
 def jdkJavaDoc() {
     def version = JavaVersion.current()
     def majorVersion = version.majorVersion
@@ -133,12 +149,12 @@ def jdkJavaDoc() {
 
 def projectVersion(project) {
     def versionSuffix = ""
-    def branchName = versionDetails().branchName
+    def gitBranchName = versionDetails().branchName
+    def branchName = gitBranchName ?: project.findProperty("branch")
     if (branchName != null) {
-        def isRelease = System.getProperty("release")
         if (branchName == "develop") {
             versionSuffix = "-SNAPSHOT"
-        } else if (branchName != 'master' && !isRelease) {
+        } else if (branchName.startsWith("feature")) {
             versionSuffix = "-${branchName.replace("/", "-")}-SNAPSHOT"
         }
     }
