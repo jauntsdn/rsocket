@@ -139,12 +139,12 @@ def jdkJavaDoc() {
 
 def projectVersion(project) {
     def versionSuffix = ""
-    def branchName = versionDetails().branchName
+    def gitBranchName = versionDetails().branchName
+    def branchName = gitBranchName ?: project.findProperty("branch")
     if (branchName != null) {
-        def isRelease = System.getProperty("release")
         if (branchName == "develop") {
             versionSuffix = "-SNAPSHOT"
-        } else if (branchName != 'master' && !isRelease) {
+        } else if (branchName.startsWith("feature")) {
             versionSuffix = "-${branchName.replace("/", "-")}-SNAPSHOT"
         }
     }
