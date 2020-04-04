@@ -72,6 +72,7 @@ subprojects {
     plugins.withType(JavaPlugin) {
         compileJava {
             sourceCompatibility = 1.8
+            targetCompatibility = 1.8
             dependsOn 'googleJavaFormat'
         }
 
