@@ -37,7 +37,7 @@ Server
 ```
  Mono<CloseableChannel> server = 
      RSocketFactory.receive()
-        .acceptor((ConnectionSetupPayload setup, RSocket requester) -> Mono.just(new ServerAcceptor(setup, requester)))
+        .acceptor((setupPayload, requesterRSocket) -> Mono.just(new ServerAcceptor(setupPayload, requesterRSocket)))
         .transport(TcpServerTransport.create(7878))
         .start();
 ```
@@ -47,7 +47,7 @@ Client
 Mono<RSocket> client =
         RSocketFactory.connect()
             .setupPayload(payload)
-            .acceptor((ConnectionSetupPayload setup, RSocket requester) -> new OptionalClientAcceptor(setup, requester))  
+            .acceptor((setupPayload, requesterRSocket) -> new OptionalClientAcceptor(setupPayload, requesterRSocket))  
             .transport(TcpClientTransport.create(7878))
             .start();
 ```
