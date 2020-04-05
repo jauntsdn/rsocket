@@ -24,7 +24,7 @@ Notable features:
 * Accompanied by RSocket-RPC - efficient remote procedure call system on top of [Protocol Buffers](https://developers.google.com/protocol-buffers).
 
 RSocket 
-```
+```java
 interface RSocket extends Availability, Closeable {
     Flux<Payload> requestChannel(Publisher<Payload> payloads);
     Flux<Payload> requestStream(Payload payload);
@@ -34,20 +34,22 @@ interface RSocket extends Availability, Closeable {
 ```
     
 Server
-```
+```java
  Mono<CloseableChannel> server = 
      RSocketFactory.receive()
-        .acceptor((setupPayload, requesterRSocket) -> Mono.just(new ServerAcceptor(setupPayload, requesterRSocket)))
+         // connectionSetupPayload, requester RSocket        
+        .acceptor((payload, rSocket) -> Mono.just(new ServerAcceptorRSocket(payload, rSocket)))
         .transport(TcpServerTransport.create(7878))
         .start();
 ```
 
 Client
-```
+```java
 Mono<RSocket> client =
         RSocketFactory.connect()
             .setupPayload(payload)
-            .acceptor((setupPayload, requesterRSocket) -> new OptionalClientAcceptor(setupPayload, requesterRSocket))  
+             // requester RSocket        
+            .acceptor(rSocket -> new ClientAcceptorRSocket(rSocket))  
             .transport(TcpClientTransport.create(7878))
             .start();
 ```
@@ -76,7 +78,7 @@ message Response {
 ```
 
 Compiler generates Service interface
-```
+```java
 public interface Service {
   Mono<Response> response(Request message, ByteBuf metadata);
   Flux<Response> serverStream(Request message, ByteBuf metadata);
@@ -85,15 +87,21 @@ public interface Service {
 }
 ```
 and Server/Client stubs
-```
+```java
 ServiceServer extends AbstractRSocket {
-    public ServiceServer(StreamService service, Optional<ByteBufAllocator> allocator, Optional<MeterRegistry> registry, Optional<Tracer> tracer) {}
+    public ServiceServer(StreamService service, 
+                         Optional<ByteBufAllocator> allocator, 
+                         Optional<MeterRegistry> registry, 
+                         Optional<Tracer> tracer) {}
 }
 ```
 
-```
+```java
 ServiceClient implements Service {
-    public ServiceClient(RSocket rSocket, Optional<ByteBufAllocator> allocator, Optional<MeterRegistry> registry, Optional<Tracer> tracer) {}
+    public ServiceClient(RSocket rSocket, 
+                         Optional<ByteBufAllocator> allocator, 
+                         Optional<MeterRegistry> registry, 
+                         Optional<Tracer> tracer) {}
 }
 ```
 
