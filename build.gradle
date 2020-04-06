@@ -75,11 +75,6 @@ subprojects {
             targetCompatibility = 1.8
 
             options.compilerArgs << '-XDignore.symbol.file'
-            if (!JavaVersion.current().isJava11Compatible()) {
-                options.fork = true
-                options.forkOptions.executable = 'javac'
-            }
-
             dependsOn 'googleJavaFormat'
         }
 
