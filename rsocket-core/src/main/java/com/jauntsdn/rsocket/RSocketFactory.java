@@ -105,7 +105,7 @@ public class RSocketFactory {
     private PluginRegistry plugins = new PluginRegistry(Plugins.defaultPlugins());
 
     private Payload setupPayload = EmptyPayload.INSTANCE;
-    private PayloadDecoder payloadDecoder = PayloadDecoder.DEFAULT;
+    private PayloadDecoder payloadDecoder = PayloadDecoder.ZERO_COPY;
 
     private Duration tickPeriod = Duration.ofSeconds(15);
     private Duration ackTimeout = Duration.ofSeconds(90);
@@ -455,7 +455,7 @@ public class RSocketFactory {
     private static final String SERVER_TAG = "server";
 
     private SocketAcceptor acceptor;
-    private PayloadDecoder payloadDecoder = PayloadDecoder.DEFAULT;
+    private PayloadDecoder payloadDecoder = PayloadDecoder.ZERO_COPY;
     private Consumer<Throwable> errorConsumer = Throwable::printStackTrace;
     private PluginRegistry plugins = new PluginRegistry(Plugins.defaultPlugins());
 

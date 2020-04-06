@@ -1,44 +1,30 @@
+[![Build Status](https://travis-ci.org/jauntsdn/rsocket.svg?branch=develop)](https://travis-ci.org/jauntsdn/rsocket) ![Maven Central](https://img.shields.io/maven-central/v/com.jauntsdn.rsocket/rsocket-core)
+
 # RSocket
 
-[RSocket](https://rsocket.io) is a binary session layer protocol for use on byte stream transports such as TCP, WebSockets and Http2.
- Accompanied by RSocket-RPC - code generation based remote procedure call system on top of [Protocol Buffers](https://developers.google.com/protocol-buffers).
-* Rich symmetric (initiated by both Client and Server) interactions via async message passing, with flow control according to [Reactive Streams](https://github.com/reactive-streams/reactive-streams-jvm) specification:
-```
-  request/channel (bidirectional stream)  
-  request/stream (stream of many)  
-  request/response (stream of 1)  
-  fire-and-forget (no response)  
-```
-* Transport agnostic: RSockets can be carried by any connection-oriented protocol with reliable byte streams delivery - TCP, Websockets are available OOTB 
+Java implementation of [RSocket](https://rsocket.io) - binary session layer protocol for use on byte stream transports.  
+It is intended for high-throughput applications targeting low latency, with peers connected by heterogeneous and probably unreliable networks. 
+
+Notable features:
+
+* Rich symmetric (initiated by both client and server) interactions via byte message passing, with flow control according to [Reactive Streams](https://github.com/reactive-streams/reactive-streams-jvm)
+  
+  `request/channel`  - bidirectional stream of many  
+  `request/stream`   - stream of many  
+  `request/response` - stream of 1  
+  `fire-and-forget`  - no response  
+
 * Concurrency limiting with requests leasing
 * Automatic session resumption
+* Transport agnostic: RSockets can be carried by any connection-oriented protocol with reliable byte streams delivery - TCP, WebSockets, Http2, Unix sockets etc
 * Efficient implementation:
     * [Netty](https://github.com/netty/netty) and [ProjectReactor](https://github.com/reactor/reactor-core) for non-blocking IO and flow control
     * Zero-copy message handling
     * Small core library footprint: suitable for both server and client/embedded applications
-    
-Server
-```
- CloseableChannel server = 
-     RSocketFactory.receive()
-        .acceptor(new ServerAcceptor()) // (setup payload, requester RSocket) -> responder RSocket
-        .transport(TcpServerTransport.create(7878))
-        .start()
-        .block();
-```
-
-Client
-```
-Mono<RSocket> client =
-        RSocketFactory.connect()
-            .setupPayload(payload)
-            .acceptor(new OptionalClientAcceptor()) // (requester RSocket) -> responder RSocket 
-            .transport(TcpClientTransport.create(7878))
-            .start();
-```
+* Accompanied by RSocket-RPC - efficient remote procedure call system on top of [Protocol Buffers](https://developers.google.com/protocol-buffers).
 
 RSocket 
-```
+```java
 interface RSocket extends Availability, Closeable {
     Flux<Payload> requestChannel(Publisher<Payload> payloads);
     Flux<Payload> requestStream(Payload payload);
@@ -46,14 +32,34 @@ interface RSocket extends Availability, Closeable {
     Mono<Void> fireAndForget(Payload payload);
 }
 ```
+    
+Server
+```java
+ Mono<CloseableChannel> server = 
+     RSocketFactory.receive()
+         // connectionSetupPayload, requester RSocket        
+        .acceptor((payload, rSocket) -> Mono.just(new ServerAcceptorRSocket(payload, rSocket)))
+        .transport(TcpServerTransport.create(7878))
+        .start();
+```
+
+Client
+```java
+Mono<RSocket> client =
+        RSocketFactory.connect()
+            .setupPayload(payload)
+             // requester RSocket        
+            .acceptor(rSocket -> new ClientAcceptorRSocket(rSocket))  
+            .transport(TcpClientTransport.create(7878))
+            .start();
+```
 
 ## RSocket-RPC
 
-Codegeneration based RPC system (Clients & Servers stubs code is generated from service and `Protocol Buffer` messages definition files) 
-with all features of RSocket: pluggable transports, request message-level flow control,
-concurrency limiting with request leasing, automatic session resumption.   
+Code generation based RPC system on top of `Protocol Buffers` with all features of RSocket:  
+pluggable transports, request message-level flow control, concurrency limiting with request leasing, automatic session resumption.   
 
-IDL
+Services and messages are declared with Protocol Buffers IDL
 ```
 service Service {
     rpc response (Request) returns (Response) {}
@@ -71,34 +77,47 @@ message Response {
 }
 ```
 
-RPC compiler generates Service interface
-```
-public interface StreamService {
+Compiler generates Service interface
+```java
+public interface Service {
   Mono<Response> response(Request message, ByteBuf metadata);
   Flux<Response> serverStream(Request message, ByteBuf metadata);
   Mono<Response> clientStream(Publisher<Request> messages, ByteBuf metadata);
   Flux<Response> channel(Publisher<Request> messages, ByteBuf metadata);
 }
 ```
-and Client/Server stubs
+and Server/Client stubs
+```java
+ServiceServer extends AbstractRSocket {
+    public ServiceServer(StreamService service, 
+                         Optional<ByteBufAllocator> allocator, 
+                         Optional<MeterRegistry> registry, 
+                         Optional<Tracer> tracer) {}
+}
 ```
-public ServiceServer(StreamService service, Optional<MeterRegistry> registry, Optional<Tracer> tracer) {
 
-public ServiceClient(com.jauntsdn.rsocket.RSocket rSocket, MeterRegistry registry, Tracer tracer) {
+```java
+ServiceClient implements Service {
+    public ServiceClient(RSocket rSocket, 
+                         Optional<ByteBufAllocator> allocator, 
+                         Optional<MeterRegistry> registry, 
+                         Optional<Tracer> tracer) {}
+}
 ```
 
 ## Build
 
-Following command cleans output, formats sources, builds and installs binaries to local repository 
+Building and publishing binaries to local Maven repository 
 ```
 ./gradlew clean build publishToMavenLocal
 ```
 
-RSocket-RPC compiler is built separately, and requires [Protocol Buffers](https://github.com/grpc/grpc-java/blob/master/COMPILING.md#how-to-build-code-generation-plugin) compiler installed
+Building RSocket-RPC compiler requires [Protocol Buffers](https://github.com/grpc/grpc-java/blob/master/COMPILING.md#how-to-build-code-generation-plugin) compiler installed
 ```
 cd rsocket-rpc-protobuf
-./gradlew clean build
+./gradlew clean build publishToMavenLocal
 ```
+
 ## Examples 
 
 Runnable examples are available at [rsocket-showcases](https://github.com/jauntsdn/rsocket-showcases) repository.
@@ -113,7 +132,7 @@ Bill of materials
 ```groovy
 dependencyManagement {
         imports {
-            mavenBom "com.jauntsdn.rsocket:rsocket-bom:0.9.1"
+            mavenBom "com.jauntsdn.rsocket:rsocket-bom:0.9.2"
         }
 }
 ```
@@ -132,7 +151,7 @@ Bill of materials
 ```groovy
 dependencyManagement {
         imports {
-            mavenBom "com.jauntsdn.rsocket:rsocket-rpc-bom:0.9.1"
+            mavenBom "com.jauntsdn.rsocket:rsocket-rpc-bom:0.9.2"
         }
 }
 ```
