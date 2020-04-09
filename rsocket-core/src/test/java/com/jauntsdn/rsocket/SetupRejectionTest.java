@@ -11,7 +11,6 @@ import com.jauntsdn.rsocket.frame.FrameType;
 import com.jauntsdn.rsocket.frame.SetupFrameFlyweight;
 import com.jauntsdn.rsocket.frame.decoder.PayloadDecoder;
 import com.jauntsdn.rsocket.keepalive.KeepAliveHandler;
-import com.jauntsdn.rsocket.lease.RequesterLeaseHandler;
 import com.jauntsdn.rsocket.test.util.TestDuplexConnection;
 import com.jauntsdn.rsocket.transport.ServerTransport;
 import com.jauntsdn.rsocket.util.DefaultPayload;
@@ -60,8 +59,7 @@ public class SetupRejectionTest {
             StreamIdSupplier.clientSupplier(),
             100_000,
             100_000,
-            new KeepAliveHandler.DefaultKeepAliveHandler(conn),
-            RequesterLeaseHandler.None);
+            new KeepAliveHandler.DefaultKeepAliveHandler(conn));
 
     String errorMsg = "error";
 
@@ -95,8 +93,7 @@ public class SetupRejectionTest {
             StreamIdSupplier.clientSupplier(),
             100_000,
             100_000,
-            new KeepAliveHandler.DefaultKeepAliveHandler(conn),
-            RequesterLeaseHandler.None);
+            new KeepAliveHandler.DefaultKeepAliveHandler(conn));
 
     conn.addToReceivedBuffer(
         ErrorFrameFlyweight.encode(

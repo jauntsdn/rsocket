@@ -23,6 +23,8 @@ import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import java.util.function.LongConsumer;
+import javax.annotation.Nullable;
 import reactor.core.Disposable;
 import reactor.core.scheduler.Scheduler;
 
@@ -31,6 +33,7 @@ public abstract class KeepAlive implements Consumer<ByteBuf> {
   final ByteBufAllocator allocator;
   final long timeoutMillis;
   final Consumer<ByteBuf> onFrameSent;
+  LongConsumer onRtt;
   ResumeStateHolder resumeStateHolder;
   Runnable onTimeout;
 
@@ -53,6 +56,11 @@ public abstract class KeepAlive implements Consumer<ByteBuf> {
     return this;
   }
 
+  public KeepAlive onRtt(@Nullable LongConsumer onRtt) {
+    this.onRtt = onRtt;
+    return this;
+  }
+
   public KeepAlive resumeState(ResumeStateHolder resumeStateHolder) {
     this.resumeStateHolder = resumeStateHolder;
     return this;
@@ -70,14 +78,12 @@ public abstract class KeepAlive implements Consumer<ByteBuf> {
       long remoteLastReceivedPos = remoteLastReceivedPosition(keepAliveFrame);
       holder.onImpliedPosition(remoteLastReceivedPos);
     }
+    ByteBuf data = KeepAliveFrameFlyweight.data(keepAliveFrame);
     if (KeepAliveFrameFlyweight.respondFlag(keepAliveFrame)) {
       long localLastReceivedPos = localLastReceivedPosition(holder);
-      send(
-          KeepAliveFrameFlyweight.encode(
-              allocator,
-              false,
-              localLastReceivedPos,
-              KeepAliveFrameFlyweight.data(keepAliveFrame).retain()));
+      send(KeepAliveFrameFlyweight.encode(allocator, false, localLastReceivedPos, data.retain()));
+    } else {
+      onRtt(data);
     }
   }
 
@@ -99,6 +105,14 @@ public abstract class KeepAlive implements Consumer<ByteBuf> {
   void assertNotStarted() {
     if (scheduleDisposable != null) {
       throw new IllegalStateException("keep-alive start() called while started already");
+    }
+  }
+
+  void onRtt(ByteBuf data) {
+    LongConsumer onRtt = this.onRtt;
+    if (onRtt != null) {
+      long rtt = System.currentTimeMillis() - data.readLong();
+      onRtt.accept(rtt);
     }
   }
 
@@ -198,7 +212,15 @@ public abstract class KeepAlive implements Consumer<ByteBuf> {
                 allocator,
                 true,
                 localLastReceivedPosition(this.resumeStateHolder),
-                Unpooled.EMPTY_BUFFER));
+                keepAliveData()));
+      }
+    }
+
+    private ByteBuf keepAliveData() {
+      if (onRtt != null) {
+        return allocator.buffer(Long.BYTES).writeLong(System.currentTimeMillis());
+      } else {
+        return Unpooled.EMPTY_BUFFER;
       }
     }
   }

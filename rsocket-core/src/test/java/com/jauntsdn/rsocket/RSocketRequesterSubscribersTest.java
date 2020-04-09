@@ -20,7 +20,6 @@ import com.jauntsdn.rsocket.frame.FrameHeaderFlyweight;
 import com.jauntsdn.rsocket.frame.FrameType;
 import com.jauntsdn.rsocket.frame.decoder.PayloadDecoder;
 import com.jauntsdn.rsocket.keepalive.KeepAliveHandler;
-import com.jauntsdn.rsocket.lease.RequesterLeaseHandler;
 import com.jauntsdn.rsocket.test.util.TestDuplexConnection;
 import com.jauntsdn.rsocket.util.DefaultPayload;
 import com.jauntsdn.rsocket.util.MultiSubscriberRSocket;
@@ -69,8 +68,7 @@ class RSocketRequesterSubscribersTest {
             StreamIdSupplier.clientSupplier(),
             100_000,
             100_000,
-            new KeepAliveHandler.DefaultKeepAliveHandler(connection),
-            RequesterLeaseHandler.None);
+            new KeepAliveHandler.DefaultKeepAliveHandler(connection));
   }
 
   @ParameterizedTest

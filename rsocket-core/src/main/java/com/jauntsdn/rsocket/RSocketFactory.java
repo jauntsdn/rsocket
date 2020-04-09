@@ -31,10 +31,6 @@ import com.jauntsdn.rsocket.internal.ClientServerInputMultiplexer;
 import com.jauntsdn.rsocket.internal.ClientSetup;
 import com.jauntsdn.rsocket.internal.ServerSetup;
 import com.jauntsdn.rsocket.keepalive.KeepAliveHandler;
-import com.jauntsdn.rsocket.lease.LeaseStats;
-import com.jauntsdn.rsocket.lease.Leases;
-import com.jauntsdn.rsocket.lease.RequesterLeaseHandler;
-import com.jauntsdn.rsocket.lease.ResponderLeaseHandler;
 import com.jauntsdn.rsocket.plugins.*;
 import com.jauntsdn.rsocket.resume.*;
 import com.jauntsdn.rsocket.transport.ClientTransport;
@@ -86,8 +82,6 @@ public class RSocketFactory {
 
   public interface ServerTransportAcceptor {
 
-    ServerTransport.ConnectionAcceptor toConnectionAcceptor();
-
     <T extends Closeable> Start<T> transport(Supplier<ServerTransport<T>> transport);
 
     default <T extends Closeable> Start<T> transport(ServerTransport<T> transport) {
@@ -126,7 +120,7 @@ public class RSocketFactory {
 
     private boolean multiSubscriberRequester = true;
     private boolean leaseEnabled;
-    private Supplier<Leases<?>> leasesSupplier = Leases::new;
+    private Leases.ClientConfigurer leaseConfigurer = (rtt, scheduler) -> Leases.create();
 
     private ByteBufAllocator allocator = ByteBufAllocator.DEFAULT;
     private boolean acceptFragmentedFrames;
@@ -190,16 +184,35 @@ public class RSocketFactory {
       return this;
     }
 
-    public ClientRSocketFactory lease(Supplier<Leases<? extends LeaseStats>> leasesSupplier) {
+    /**
+     * Enable and configure requests lease support
+     *
+     * @param leaseConfigurer configures requests lease
+     * @return this {@link ClientRSocketFactory} instance
+     */
+    public ClientRSocketFactory lease(Leases.ClientConfigurer leaseConfigurer) {
       this.leaseEnabled = true;
-      this.leasesSupplier = Objects.requireNonNull(leasesSupplier);
+      this.leaseConfigurer = Objects.requireNonNull(leaseConfigurer, "leaseConfigurer");
       return this;
     }
 
+    /**
+     * Enables requests lease support. Responder will not accept any requests because {@link Leases}
+     * is not configured
+     *
+     * @return this {@link ClientRSocketFactory} instance
+     */
     public ClientRSocketFactory lease() {
-      return lease(true);
+      this.leaseEnabled = true;
+      return this;
     }
 
+    /**
+     * Enables requests lease support. Responder will not accept any requests because {@link Leases}
+     * is not configured
+     *
+     * @return this {@link ClientRSocketFactory} instance
+     */
     public ClientRSocketFactory lease(boolean leaseEnabled) {
       this.leaseEnabled = leaseEnabled;
       return this;
@@ -319,40 +332,8 @@ public class RSocketFactory {
                   }
 
                   ClientSetup clientSetup = clientSetup(connection);
-                  ByteBuf resumeToken = clientSetup.resumeToken();
-                  KeepAliveHandler keepAliveHandler = clientSetup.keepAliveHandler();
-                  DuplexConnection wrappedConnection = clientSetup.connection();
-
-                  ClientServerInputMultiplexer multiplexer =
-                      new ClientServerInputMultiplexer(wrappedConnection, plugins, true);
-
                   boolean isLeaseEnabled = leaseEnabled;
-                  Leases<?> leases = leasesSupplier.get();
-                  RequesterLeaseHandler requesterLeaseHandler =
-                      isLeaseEnabled
-                          ? new RequesterLeaseHandler.Impl(CLIENT_TAG, leases.receiver())
-                          : RequesterLeaseHandler.None;
-
-                  final int keepAliveTimeout = this.keepAliveTimeout;
-                  final int keepAliveTickPeriod = this.keepAliveTickPeriod;
-
-                  RSocket rSocketRequester =
-                      new RSocketRequester(
-                          allocator,
-                          multiplexer.asClientConnection(),
-                          payloadDecoder,
-                          errorConsumer,
-                          StreamIdSupplier.clientSupplier(),
-                          keepAliveTickPeriod,
-                          keepAliveTimeout,
-                          keepAliveHandler,
-                          requesterLeaseHandler);
-
-                  if (multiSubscriberRequester) {
-                    rSocketRequester = new MultiSubscriberRSocket(rSocketRequester);
-                  }
-
-                  RSocket wrappedRSocketRequester = plugins.applyRequester(rSocketRequester);
+                  ByteBuf resumeToken = clientSetup.resumeToken();
 
                   ByteBuf setupFrame =
                       SetupFrameFlyweight.encode(
@@ -365,33 +346,55 @@ public class RSocketFactory {
                           dataMimeType,
                           setupPayload);
 
-                  ConnectionSetupPayload setup = ConnectionSetupPayload.create(setupFrame);
+                  ConnectionSetupPayload connectionSetupPayload =
+                      ConnectionSetupPayload.create(setupFrame);
+
+                  KeepAliveHandler keepAliveHandler = clientSetup.keepAliveHandler();
+                  DuplexConnection wrappedConnection = clientSetup.connection();
+
+                  ClientServerInputMultiplexer multiplexer =
+                      new ClientServerInputMultiplexer(wrappedConnection, plugins, true);
+
+                  RSocketsFactory rSocketsFactory =
+                      RSocketsFactory.createClient(
+                          connectionSetupPayload.willClientHonorLease(),
+                          connection.scheduler(),
+                          leaseConfigurer);
+
+                  final int keepAliveTimeout = this.keepAliveTimeout;
+                  final int keepAliveTickPeriod = this.keepAliveTickPeriod;
+
+                  RSocket rSocketRequester =
+                      rSocketsFactory.createRequester(
+                          allocator,
+                          multiplexer.asClientConnection(),
+                          payloadDecoder,
+                          errorConsumer,
+                          StreamIdSupplier.clientSupplier(),
+                          keepAliveTickPeriod,
+                          keepAliveTimeout,
+                          keepAliveHandler);
+
+                  if (multiSubscriberRequester) {
+                    rSocketRequester = new MultiSubscriberRSocket(rSocketRequester);
+                  }
+
+                  RSocket wrappedRSocketRequester = plugins.applyRequester(rSocketRequester);
 
                   return plugins
                       .applySocketAcceptorInterceptor(acceptor)
-                      .accept(setup, wrappedRSocketRequester)
+                      .accept(connectionSetupPayload, wrappedRSocketRequester)
                       .flatMap(
                           rSocketHandler -> {
                             RSocket wrappedRSocketHandler = plugins.applyResponder(rSocketHandler);
 
-                            ResponderLeaseHandler responderLeaseHandler =
-                                isLeaseEnabled
-                                    ? new ResponderLeaseHandler.Impl<>(
-                                        CLIENT_TAG,
-                                        allocator,
-                                        leases.sender(),
-                                        errorConsumer,
-                                        leases.stats())
-                                    : ResponderLeaseHandler.None;
-
                             RSocket rSocketResponder =
-                                new RSocketResponder(
+                                rSocketsFactory.createResponder(
                                     allocator,
                                     multiplexer.asServerConnection(),
                                     wrappedRSocketHandler,
                                     payloadDecoder,
-                                    errorConsumer,
-                                    responderLeaseHandler);
+                                    errorConsumer);
 
                             return wrappedConnection
                                 .sendOne(setupFrame)
@@ -467,7 +470,7 @@ public class RSocketFactory {
 
     private boolean multiSubscriberRequester = true;
     private boolean leaseEnabled;
-    private Supplier<Leases<?>> leasesSupplier = Leases::new;
+    private Leases.ServerConfigurer leaseConfigurer = scheduler -> Leases.create();
 
     private ByteBufAllocator allocator = ByteBufAllocator.DEFAULT;
     private boolean resumeCleanupStoreOnKeepAlive;
@@ -504,7 +507,7 @@ public class RSocketFactory {
 
     public ServerTransportAcceptor acceptor(SocketAcceptor acceptor) {
       this.acceptor = acceptor;
-      return new ServerStart<>();
+      return ServerStart::new;
     }
 
     public ServerRSocketFactory frameDecoder(PayloadDecoder payloadDecoder) {
@@ -522,17 +525,35 @@ public class RSocketFactory {
       return this;
     }
 
-    public ServerRSocketFactory lease(Supplier<Leases<?>> leasesSupplier) {
+    /**
+     * Enable and configure requests lease support
+     *
+     * @param leaseConfigurer configures requests lease
+     * @return this {@link ServerRSocketFactory} instance
+     */
+    public ServerRSocketFactory lease(Leases.ServerConfigurer leaseConfigurer) {
       this.leaseEnabled = true;
-      this.leasesSupplier = Objects.requireNonNull(leasesSupplier);
+      this.leaseConfigurer = Objects.requireNonNull(leaseConfigurer, "leaseConfigurer");
       return this;
     }
 
+    /**
+     * Enables requests lease support. Responder will not accept any requests because {@link Leases}
+     * is not configured
+     *
+     * @return this {@link ServerRSocketFactory} instance
+     */
     public ServerRSocketFactory lease() {
       this.leaseEnabled = true;
       return this;
     }
 
+    /**
+     * Enables requests lease support. Responder will not accept any requests because {@link Leases}
+     * is not configured
+     *
+     * @return this {@link ServerRSocketFactory} instance
+     */
     public ServerRSocketFactory lease(boolean leaseEnabled) {
       this.leaseEnabled = leaseEnabled;
       return this;
@@ -579,148 +600,11 @@ public class RSocketFactory {
       return this;
     }
 
-    private class ServerStart<T extends Closeable> implements Start<T>, ServerTransportAcceptor {
-      private Supplier<ServerTransport<T>> transportServer;
+    private class ServerStart<T extends Closeable> implements Start<T> {
+      private final Supplier<ServerTransport<T>> transportServer;
 
-      @Override
-      public ServerTransport.ConnectionAcceptor toConnectionAcceptor() {
-        return new ServerTransport.ConnectionAcceptor() {
-          private final ServerSetup serverSetup = serverSetup();
-
-          @Override
-          public Mono<Void> apply(DuplexConnection connection) {
-            return acceptor(serverSetup, connection);
-          }
-        };
-      }
-
-      @Override
-      @SuppressWarnings("unchecked")
-      public <T extends Closeable> Start<T> transport(Supplier<ServerTransport<T>> transport) {
-        this.transportServer = (Supplier) transport;
-        return (Start) this::start;
-      }
-
-      private Mono<Void> acceptor(ServerSetup serverSetup, DuplexConnection connection) {
-
-        if (acceptFragmentedFrames) {
-          connection = new FragmentationDuplexConnection(connection, allocator, frameSizeLimit);
-        }
-
-        ClientServerInputMultiplexer multiplexer =
-            new ClientServerInputMultiplexer(connection, plugins, false);
-
-        return multiplexer
-            .asSetupConnection()
-            .receive()
-            .next()
-            .flatMap(startFrame -> accept(serverSetup, startFrame, multiplexer));
-      }
-
-      private Mono<Void> acceptResume(
-          ServerSetup serverSetup, ByteBuf resumeFrame, ClientServerInputMultiplexer multiplexer) {
-        return serverSetup.acceptRSocketResume(resumeFrame, multiplexer);
-      }
-
-      private Mono<Void> accept(
-          ServerSetup serverSetup, ByteBuf startFrame, ClientServerInputMultiplexer multiplexer) {
-        switch (FrameHeaderFlyweight.frameType(startFrame)) {
-          case SETUP:
-            return acceptSetup(serverSetup, startFrame, multiplexer);
-          case RESUME:
-            return acceptResume(serverSetup, startFrame, multiplexer);
-          default:
-            return acceptUnknown(startFrame, multiplexer);
-        }
-      }
-
-      private Mono<Void> acceptSetup(
-          ServerSetup serverSetup, ByteBuf setupFrame, ClientServerInputMultiplexer multiplexer) {
-
-        if (!SetupFrameFlyweight.isSupportedVersion(setupFrame)) {
-          return sendError(
-                  multiplexer,
-                  new InvalidSetupException(
-                      "Unsupported version: "
-                          + SetupFrameFlyweight.humanReadableVersion(setupFrame)))
-              .doFinally(
-                  signalType -> {
-                    setupFrame.release();
-                    multiplexer.dispose();
-                  });
-        }
-
-        boolean isLeaseEnabled = leaseEnabled;
-
-        if (SetupFrameFlyweight.honorLease(setupFrame) && !isLeaseEnabled) {
-          return sendError(multiplexer, new InvalidSetupException("lease is not supported"))
-              .doFinally(
-                  signalType -> {
-                    setupFrame.release();
-                    multiplexer.dispose();
-                  });
-        }
-
-        return serverSetup.acceptRSocketSetup(
-            setupFrame,
-            multiplexer,
-            (keepAliveHandler, wrappedMultiplexer) -> {
-              ConnectionSetupPayload setupPayload = ConnectionSetupPayload.create(setupFrame);
-
-              Leases<?> leases = leasesSupplier.get();
-              RequesterLeaseHandler requesterLeaseHandler =
-                  isLeaseEnabled
-                      ? new RequesterLeaseHandler.Impl(SERVER_TAG, leases.receiver())
-                      : RequesterLeaseHandler.None;
-
-              RSocket rSocketRequester =
-                  new RSocketRequester(
-                      allocator,
-                      wrappedMultiplexer.asServerConnection(),
-                      payloadDecoder,
-                      errorConsumer,
-                      StreamIdSupplier.serverSupplier(),
-                      0,
-                      setupPayload.keepAliveMaxLifetime(),
-                      keepAliveHandler,
-                      requesterLeaseHandler);
-
-              if (multiSubscriberRequester) {
-                rSocketRequester = new MultiSubscriberRSocket(rSocketRequester);
-              }
-              RSocket wrappedRSocketRequester = plugins.applyRequester(rSocketRequester);
-
-              return plugins
-                  .applySocketAcceptorInterceptor(acceptor)
-                  .accept(setupPayload, wrappedRSocketRequester)
-                  .onErrorResume(
-                      err -> sendError(multiplexer, rejectedSetupError(err)).then(Mono.error(err)))
-                  .doOnNext(
-                      rSocketHandler -> {
-                        RSocket wrappedRSocketHandler = plugins.applyResponder(rSocketHandler);
-
-                        ResponderLeaseHandler responderLeaseHandler =
-                            isLeaseEnabled
-                                ? new ResponderLeaseHandler.Impl<>(
-                                    SERVER_TAG,
-                                    allocator,
-                                    leases.sender(),
-                                    errorConsumer,
-                                    leases.stats())
-                                : ResponderLeaseHandler.None;
-
-                        RSocket rSocketResponder =
-                            new RSocketResponder(
-                                allocator,
-                                wrappedMultiplexer.asClientConnection(),
-                                wrappedRSocketHandler,
-                                payloadDecoder,
-                                errorConsumer,
-                                responderLeaseHandler);
-                      })
-                  .doFinally(signalType -> setupPayload.release())
-                  .then();
-            });
+      public ServerStart(Supplier<ServerTransport<T>> transportServer) {
+        this.transportServer = transportServer;
       }
 
       @Override
@@ -735,8 +619,128 @@ public class RSocketFactory {
                 return transportServer
                     .get()
                     .start(
-                        duplexConnection -> acceptor(serverSetup, duplexConnection), frameSizeLimit)
+                        duplexConnection -> {
+                          if (acceptFragmentedFrames) {
+                            duplexConnection =
+                                new FragmentationDuplexConnection(
+                                    duplexConnection, allocator, frameSizeLimit);
+                          }
+
+                          ClientServerInputMultiplexer multiplexer =
+                              new ClientServerInputMultiplexer(duplexConnection, plugins, false);
+
+                          return multiplexer
+                              .asSetupConnection()
+                              .receive()
+                              .next()
+                              .flatMap(startFrame -> accept(startFrame, multiplexer));
+                        },
+                        frameSizeLimit)
                     .doOnNext(c -> c.onClose().doFinally(v -> serverSetup.dispose()).subscribe());
+              }
+
+              private Mono<Void> accept(
+                  ByteBuf startFrame, ClientServerInputMultiplexer multiplexer) {
+                switch (FrameHeaderFlyweight.frameType(startFrame)) {
+                  case SETUP:
+                    return acceptSetup(serverSetup, startFrame, multiplexer);
+                  case RESUME:
+                    return acceptResume(serverSetup, startFrame, multiplexer);
+                  default:
+                    return acceptUnknown(startFrame, multiplexer);
+                }
+              }
+
+              private Mono<Void> acceptSetup(
+                  ServerSetup serverSetup,
+                  ByteBuf setupFrame,
+                  ClientServerInputMultiplexer multiplexer) {
+
+                if (!SetupFrameFlyweight.isSupportedVersion(setupFrame)) {
+                  return sendError(
+                          multiplexer,
+                          new InvalidSetupException(
+                              "Unsupported version: "
+                                  + SetupFrameFlyweight.humanReadableVersion(setupFrame)))
+                      .doFinally(
+                          signalType -> {
+                            setupFrame.release();
+                            multiplexer.dispose();
+                          });
+                }
+
+                boolean isLeaseEnabled = leaseEnabled;
+
+                if (SetupFrameFlyweight.honorLease(setupFrame) && !isLeaseEnabled) {
+                  return sendError(multiplexer, new InvalidSetupException("lease is not supported"))
+                      .doFinally(
+                          signalType -> {
+                            setupFrame.release();
+                            multiplexer.dispose();
+                          });
+                }
+
+                return serverSetup.acceptRSocketSetup(
+                    setupFrame,
+                    multiplexer,
+                    (keepAliveHandler, wrappedMultiplexer) -> {
+                      ConnectionSetupPayload setupPayload =
+                          ConnectionSetupPayload.create(setupFrame);
+
+                      DuplexConnection serverConnection = wrappedMultiplexer.asServerConnection();
+
+                      RSocketsFactory rSocketsFactory =
+                          RSocketsFactory.createServer(
+                              setupPayload.willClientHonorLease(),
+                              serverConnection.scheduler(),
+                              leaseConfigurer);
+
+                      RSocket rSocketRequester =
+                          rSocketsFactory.createRequester(
+                              allocator,
+                              serverConnection,
+                              payloadDecoder,
+                              errorConsumer,
+                              StreamIdSupplier.serverSupplier(),
+                              0,
+                              setupPayload.keepAliveMaxLifetime(),
+                              keepAliveHandler);
+
+                      if (multiSubscriberRequester) {
+                        rSocketRequester = new MultiSubscriberRSocket(rSocketRequester);
+                      }
+                      RSocket wrappedRSocketRequester = plugins.applyRequester(rSocketRequester);
+
+                      return plugins
+                          .applySocketAcceptorInterceptor(acceptor)
+                          .accept(setupPayload, wrappedRSocketRequester)
+                          .onErrorResume(
+                              err ->
+                                  sendError(multiplexer, rejectedSetupError(err))
+                                      .then(Mono.error(err)))
+                          .doOnNext(
+                              rSocketHandler -> {
+                                RSocket wrappedRSocketHandler =
+                                    plugins.applyResponder(rSocketHandler);
+
+                                RSocket rSocketResponder =
+                                    rSocketsFactory.createResponder(
+                                        allocator,
+                                        wrappedMultiplexer.asClientConnection(),
+                                        wrappedRSocketHandler,
+                                        payloadDecoder,
+                                        errorConsumer);
+                              })
+                          .doFinally(signalType -> setupPayload.release())
+                          .then();
+                    });
+              }
+
+              private Mono<Void> acceptResume(
+                  ServerSetup serverSetup,
+                  ByteBuf resumeFrame,
+                  ClientServerInputMultiplexer multiplexer) {
+                return serverSetup.acceptRSocketResume(resumeFrame, multiplexer);
               }
             });
       }
