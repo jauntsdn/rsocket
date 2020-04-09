@@ -21,7 +21,6 @@ import com.jauntsdn.rsocket.frame.*;
 import com.jauntsdn.rsocket.frame.decoder.PayloadDecoder;
 import com.jauntsdn.rsocket.internal.SynchronizedIntObjectHashMap;
 import com.jauntsdn.rsocket.internal.UnboundedProcessor;
-import com.jauntsdn.rsocket.lease.ResponderLeaseHandler;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.ByteBufUtil;
@@ -35,7 +34,6 @@ import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import reactor.core.Disposable;
 import reactor.core.Exceptions;
 import reactor.core.publisher.*;
 
@@ -53,14 +51,12 @@ class RSocketResponder implements ResponderRSocket {
   private final ResponderRSocket responderRSocket;
   private final PayloadDecoder payloadDecoder;
   private final Consumer<Throwable> errorConsumer;
-  private final ResponderLeaseHandler leaseHandler;
 
   private final IntObjectMap<Subscription> senders;
   private final IntObjectMap<Processor<Payload, Payload>> receivers;
 
   private final UnboundedProcessor<ByteBuf> sendProcessor;
   private final ByteBufAllocator allocator;
-  private final Disposable leaseDisposable;
 
   private volatile Throwable terminationError;
 
@@ -69,8 +65,7 @@ class RSocketResponder implements ResponderRSocket {
       DuplexConnection connection,
       RSocket requestHandler,
       PayloadDecoder payloadDecoder,
-      Consumer<Throwable> errorConsumer,
-      ResponderLeaseHandler leaseHandler) {
+      Consumer<Throwable> errorConsumer) {
     this.allocator = allocator;
     this.connection = connection;
 
@@ -80,7 +75,6 @@ class RSocketResponder implements ResponderRSocket {
 
     this.payloadDecoder = payloadDecoder;
     this.errorConsumer = errorConsumer;
-    this.leaseHandler = leaseHandler;
     this.senders = new SynchronizedIntObjectHashMap<>();
     this.receivers = new SynchronizedIntObjectHashMap<>();
 
@@ -89,7 +83,6 @@ class RSocketResponder implements ResponderRSocket {
     connection.send(sendProcessor).subscribe(null, this::handleSendProcessorError);
 
     connection.receive().subscribe(this::handleFrame, errorConsumer);
-    this.leaseDisposable = leaseHandler.send(sendProcessor::onNext);
 
     this.connection.onClose().doFinally(s -> terminate()).subscribe(null, errorConsumer);
   }
@@ -97,12 +90,7 @@ class RSocketResponder implements ResponderRSocket {
   @Override
   public Mono<Void> fireAndForget(Payload payload) {
     try {
-      if (leaseHandler.useLease()) {
-        return requestHandler.fireAndForget(payload);
-      } else {
-        payload.release();
-        return Mono.error(leaseHandler.leaseError());
-      }
+      return requestHandler.fireAndForget(payload);
     } catch (Throwable t) {
       return Mono.error(t);
     }
@@ -111,12 +99,7 @@ class RSocketResponder implements ResponderRSocket {
   @Override
   public Mono<Payload> requestResponse(Payload payload) {
     try {
-      if (leaseHandler.useLease()) {
-        return requestHandler.requestResponse(payload);
-      } else {
-        payload.release();
-        return Mono.error(leaseHandler.leaseError());
-      }
+      return requestHandler.requestResponse(payload);
     } catch (Throwable t) {
       return Mono.error(t);
     }
@@ -125,12 +108,7 @@ class RSocketResponder implements ResponderRSocket {
   @Override
   public Flux<Payload> requestStream(Payload payload) {
     try {
-      if (leaseHandler.useLease()) {
-        return requestHandler.requestStream(payload);
-      } else {
-        payload.release();
-        return Flux.error(leaseHandler.leaseError());
-      }
+      return requestHandler.requestStream(payload);
     } catch (Throwable t) {
       return Flux.error(t);
     }
@@ -138,26 +116,15 @@ class RSocketResponder implements ResponderRSocket {
 
   @Override
   public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
-    try {
-      if (leaseHandler.useLease()) {
-        return requestHandler.requestChannel(payloads);
-      } else {
-        return Flux.error(leaseHandler.leaseError());
-      }
-    } catch (Throwable t) {
-      return Flux.error(t);
-    }
+    return requestHandler.requestChannel(payloads);
   }
 
   @Override
   public Flux<Payload> requestChannel(Payload payload, Publisher<Payload> payloads) {
     try {
-      if (leaseHandler.useLease()) {
-        return responderRSocket.requestChannel(payload, payloads);
-      } else {
-        payload.release();
-        return Flux.error(leaseHandler.leaseError());
-      }
+      return responderRSocket != null
+          ? responderRSocket.requestChannel(payload, payloads)
+          : requestChannel(payloads);
     } catch (Throwable t) {
       return Flux.error(t);
     }
@@ -187,7 +154,11 @@ class RSocketResponder implements ResponderRSocket {
     return connection.onClose();
   }
 
-  private void terminate() {
+  void sendFrame(ByteBuf frame) {
+    sendProcessor.onNext(frame);
+  }
+
+  void terminate() {
     Throwable e = this.terminationError;
     if (e == null) {
       this.terminationError = e = CLOSED_CHANNEL_EXCEPTION;
@@ -223,7 +194,6 @@ class RSocketResponder implements ResponderRSocket {
 
     requestHandler.dispose();
     sendProcessor.dispose();
-    leaseDisposable.dispose();
   }
 
   private void handleSendProcessorError(Throwable t) {
@@ -444,11 +414,7 @@ class RSocketResponder implements ResponderRSocket {
     // and any later payload can be processed
     frames.onNext(payload);
 
-    if (responderRSocket != null) {
-      handleStream(streamId, requestChannel(payload, payloads), initialRequestN);
-    } else {
-      handleStream(streamId, requestChannel(payloads), initialRequestN);
-    }
+    handleStream(streamId, requestChannel(payload, payloads), initialRequestN);
   }
 
   private void handleMetadataPush(Mono<Void> result) {

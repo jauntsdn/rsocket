@@ -24,7 +24,6 @@ import com.jauntsdn.rsocket.frame.FrameHeaderFlyweight;
 import com.jauntsdn.rsocket.frame.FrameType;
 import com.jauntsdn.rsocket.frame.KeepAliveFrameFlyweight;
 import com.jauntsdn.rsocket.frame.decoder.PayloadDecoder;
-import com.jauntsdn.rsocket.lease.RequesterLeaseHandler;
 import com.jauntsdn.rsocket.resume.InMemoryResumableFramesStore;
 import com.jauntsdn.rsocket.resume.ResumableDuplexConnection;
 import com.jauntsdn.rsocket.test.util.TestDuplexConnection;
@@ -63,8 +62,7 @@ public class KeepAliveTest {
             StreamIdSupplier.clientSupplier(),
             tickPeriod,
             timeout,
-            new DefaultKeepAliveHandler(connection),
-            RequesterLeaseHandler.None);
+            new DefaultKeepAliveHandler(connection));
     return new RSocketState(rSocket, errors, connection);
   }
 
@@ -88,8 +86,7 @@ public class KeepAliveTest {
             StreamIdSupplier.clientSupplier(),
             tickPeriod,
             timeout,
-            new ResumableKeepAliveHandler(resumableConnection),
-            RequesterLeaseHandler.None);
+            new ResumableKeepAliveHandler(resumableConnection));
     return new ResumableRSocketState(rSocket, errors, connection, resumableConnection);
   }
 
