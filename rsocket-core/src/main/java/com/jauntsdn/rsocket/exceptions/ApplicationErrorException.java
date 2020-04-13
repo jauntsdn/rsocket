@@ -16,7 +16,7 @@
 
 package com.jauntsdn.rsocket.exceptions;
 
-import com.jauntsdn.rsocket.frame.ErrorType;
+import com.jauntsdn.rsocket.frame.ErrorCodes;
 
 /**
  * Application layer logic generating a Reactive Streams {@code onError} event.
@@ -51,6 +51,6 @@ public final class ApplicationErrorException extends RSocketException {
 
   @Override
   public int errorCode() {
-    return ErrorType.APPLICATION_ERROR;
+    return ErrorCodes.APPLICATION_ERROR;
   }
 }

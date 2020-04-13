@@ -90,6 +90,7 @@ class RSocketLeaseTest {
             multiplexer.asClientConnection(),
             payloadDecoder,
             err -> {},
+            StreamErrorMappers.create().createErrorFrameMapper(ByteBufAllocator.DEFAULT),
             StreamIdSupplier.clientSupplier(),
             100_000,
             100_000,
@@ -111,6 +112,7 @@ class RSocketLeaseTest {
             mockRSocketHandler,
             payloadDecoder,
             err -> {},
+            StreamErrorMappers.create().createErrorFrameMapper(ByteBufAllocator.DEFAULT),
             responderLeaseHandler);
   }
 

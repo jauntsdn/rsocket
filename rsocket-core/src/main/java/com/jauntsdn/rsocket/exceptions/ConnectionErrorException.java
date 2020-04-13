@@ -16,7 +16,7 @@
 
 package com.jauntsdn.rsocket.exceptions;
 
-import com.jauntsdn.rsocket.frame.ErrorType;
+import com.jauntsdn.rsocket.frame.ErrorCodes;
 
 /**
  * The connection is being terminated. Sender or Receiver of this frame MAY close the connection
@@ -52,6 +52,6 @@ public final class ConnectionErrorException extends RSocketException implements 
 
   @Override
   public int errorCode() {
-    return ErrorType.CONNECTION_ERROR;
+    return ErrorCodes.CONNECTION_ERROR;
   }
 }

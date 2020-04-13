@@ -18,7 +18,7 @@ package com.jauntsdn.rsocket.lease;
 
 import com.jauntsdn.rsocket.Availability;
 import com.jauntsdn.rsocket.Leases;
-import com.jauntsdn.rsocket.exceptions.RejectedException;
+import com.jauntsdn.rsocket.exceptions.Exceptions;
 import com.jauntsdn.rsocket.frame.FrameType;
 import com.jauntsdn.rsocket.frame.LeaseFrameFlyweight;
 import io.netty.buffer.ByteBuf;
@@ -74,9 +74,9 @@ public interface ResponderLeaseHandler extends Availability {
     private static final Leases.StatsRecorder<?> NOOP_LEASE_STATS_RECORDER =
         new NoopLeaseStatsRecorder();
     private static final Signal<Void> LEASE_EXPIRED_ERROR =
-        SignalImpl.error(new RejectedException("lease_expired"));
-    private static final Signal<Void> LEASE_REJECTED_ERROR =
-        SignalImpl.error(new RejectedException("lease_exhausted"));
+        SignalImpl.error(Exceptions.LEASE_EXPIRED_EXCEPTION);
+    private static final Signal<Void> LEASE_EXHAUSTED_ERROR =
+        SignalImpl.error(Exceptions.LEASE_EXHAUSTED_EXCEPTION);
 
     private volatile LeaseImpl currentLease = LeaseImpl.empty();
     private final ByteBufAllocator allocator;
@@ -105,7 +105,7 @@ public interface ResponderLeaseHandler extends Availability {
       if (lease.use()) {
         return SignalImpl.next(request);
       } else {
-        Signal<Void> e = lease.isExpired() ? LEASE_EXPIRED_ERROR : LEASE_REJECTED_ERROR;
+        Signal<Void> e = lease.isExpired() ? LEASE_EXPIRED_ERROR : LEASE_EXHAUSTED_ERROR;
         stats.onResponseStarted(requestType, request, e, 0);
         stats.onResponseTerminated(requestType, request, e);
         return SignalImpl.error(e.getThrowable());

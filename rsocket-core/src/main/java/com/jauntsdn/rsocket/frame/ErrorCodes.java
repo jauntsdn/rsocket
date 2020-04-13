@@ -6,7 +6,7 @@ package com.jauntsdn.rsocket.frame;
  * @see <a href="https://github.com/rsocket/rsocket/blob/master/Protocol.md#error-codes">Error
  *     Codes</a>
  */
-public final class ErrorType {
+public final class ErrorCodes {
 
   /**
    * Application layer logic generating a Reactive Streams onError event. Stream ID MUST be &gt; 0.
@@ -70,5 +70,5 @@ public final class ErrorType {
    */
   public static final int UNSUPPORTED_SETUP = 0x00000002;
 
-  private ErrorType() {}
+  private ErrorCodes() {}
 }
