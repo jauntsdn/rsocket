@@ -1,7 +1,7 @@
 package com.jauntsdn.rsocket.rpc.tracing;
 
 import com.jauntsdn.rsocket.rpc.frames.Metadata;
-import com.jauntsdn.rsocket.util.NumberUtils;
+import com.jauntsdn.rsocket.util.Preconditions;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.ByteBufUtil;
@@ -49,12 +49,12 @@ public class Tracing {
 
     for (Map.Entry<String, String> entry : map.entrySet()) {
       String key = entry.getKey();
-      int keyLength = NumberUtils.requireUnsignedShort(ByteBufUtil.utf8Bytes(key));
+      int keyLength = Preconditions.requireUnsignedShort(ByteBufUtil.utf8Bytes(key));
       byteBuf.writeShort(keyLength);
       ByteBufUtil.reserveAndWriteUtf8(byteBuf, key, keyLength);
 
       String value = entry.getValue();
-      int valueLength = NumberUtils.requireUnsignedShort(ByteBufUtil.utf8Bytes(value));
+      int valueLength = Preconditions.requireUnsignedShort(ByteBufUtil.utf8Bytes(value));
       byteBuf.writeShort(valueLength);
       ByteBufUtil.reserveAndWriteUtf8(byteBuf, value, keyLength);
     }

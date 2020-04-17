@@ -20,6 +20,7 @@ import static com.jauntsdn.rsocket.keepalive.KeepAliveHandler.*;
 
 import com.jauntsdn.rsocket.exceptions.RejectedResumeException;
 import com.jauntsdn.rsocket.exceptions.UnsupportedSetupException;
+import com.jauntsdn.rsocket.frame.ErrorFrameFlyweight;
 import com.jauntsdn.rsocket.frame.ResumeFrameFlyweight;
 import com.jauntsdn.rsocket.frame.SetupFrameFlyweight;
 import com.jauntsdn.rsocket.keepalive.KeepAliveHandler;
@@ -27,7 +28,6 @@ import com.jauntsdn.rsocket.resume.ResumableDuplexConnection;
 import com.jauntsdn.rsocket.resume.ResumableFramesStore;
 import com.jauntsdn.rsocket.resume.ServerRSocketSession;
 import com.jauntsdn.rsocket.resume.SessionManager;
-import com.jauntsdn.rsocket.util.ConnectionUtils;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import java.time.Duration;
@@ -60,7 +60,8 @@ public interface ServerSetup {
         BiFunction<KeepAliveHandler, ClientServerInputMultiplexer, Mono<Void>> then) {
 
       if (SetupFrameFlyweight.resumeEnabled(frame)) {
-        return sendError(multiplexer, new UnsupportedSetupException("resume not supported"))
+        return ServerSetup.sendError(
+                allocator, multiplexer, new UnsupportedSetupException("resume not supported"))
             .doFinally(
                 signalType -> {
                   frame.release();
@@ -74,16 +75,13 @@ public interface ServerSetup {
     @Override
     public Mono<Void> acceptRSocketResume(ByteBuf frame, ClientServerInputMultiplexer multiplexer) {
 
-      return sendError(multiplexer, new RejectedResumeException("resume not supported"))
+      return ServerSetup.sendError(
+              allocator, multiplexer, new RejectedResumeException("resume not supported"))
           .doFinally(
               signalType -> {
                 frame.release();
                 multiplexer.dispose();
               });
-    }
-
-    private Mono<Void> sendError(ClientServerInputMultiplexer multiplexer, Exception exception) {
-      return ConnectionUtils.sendError(allocator, multiplexer, exception);
     }
   }
 
@@ -149,7 +147,8 @@ public interface ServerSetup {
             .onClose()
             .then();
       } else {
-        return sendError(multiplexer, new RejectedResumeException("unknown resume token"))
+        return ServerSetup.sendError(
+                allocator, multiplexer, new RejectedResumeException("unknown resume token"))
             .doFinally(
                 s -> {
                   frame.release();
@@ -158,13 +157,17 @@ public interface ServerSetup {
       }
     }
 
-    private Mono<Void> sendError(ClientServerInputMultiplexer multiplexer, Exception exception) {
-      return ConnectionUtils.sendError(allocator, multiplexer, exception);
-    }
-
     @Override
     public void dispose() {
       sessionManager.dispose();
     }
+  }
+
+  static Mono<Void> sendError(
+      ByteBufAllocator allocator, ClientServerInputMultiplexer multiplexer, Exception exception) {
+    return multiplexer
+        .asSetupConnection()
+        .sendOne(ErrorFrameFlyweight.encode(allocator, 0, exception))
+        .onErrorResume(err -> Mono.empty());
   }
 }
