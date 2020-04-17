@@ -22,10 +22,7 @@ import static com.jauntsdn.rsocket.internal.ClientSetup.ResumableClientSetup;
 import com.jauntsdn.rsocket.exceptions.InvalidSetupException;
 import com.jauntsdn.rsocket.exceptions.RejectedSetupException;
 import com.jauntsdn.rsocket.fragmentation.FragmentationDuplexConnection;
-import com.jauntsdn.rsocket.frame.FrameHeaderFlyweight;
-import com.jauntsdn.rsocket.frame.FrameLengthFlyweight;
-import com.jauntsdn.rsocket.frame.ResumeFrameFlyweight;
-import com.jauntsdn.rsocket.frame.SetupFrameFlyweight;
+import com.jauntsdn.rsocket.frame.*;
 import com.jauntsdn.rsocket.frame.decoder.PayloadDecoder;
 import com.jauntsdn.rsocket.internal.ClientServerInputMultiplexer;
 import com.jauntsdn.rsocket.internal.ClientSetup;
@@ -35,7 +32,6 @@ import com.jauntsdn.rsocket.plugins.*;
 import com.jauntsdn.rsocket.resume.*;
 import com.jauntsdn.rsocket.transport.ClientTransport;
 import com.jauntsdn.rsocket.transport.ServerTransport;
-import com.jauntsdn.rsocket.util.ConnectionUtils;
 import com.jauntsdn.rsocket.util.EmptyPayload;
 import com.jauntsdn.rsocket.util.MultiSubscriberRSocket;
 import com.jauntsdn.rsocket.util.Preconditions;
@@ -770,7 +766,10 @@ public class RSocketFactory {
       }
 
       private Mono<Void> sendError(ClientServerInputMultiplexer multiplexer, Exception exception) {
-        return ConnectionUtils.sendError(allocator, multiplexer, exception);
+        return multiplexer
+            .asSetupConnection()
+            .sendOne(ErrorFrameFlyweight.encode(allocator, 0, exception))
+            .onErrorResume(err -> Mono.empty());
       }
 
       private Exception rejectedSetupError(Throwable err) {
