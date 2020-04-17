@@ -264,7 +264,7 @@ public class RSocketFactory {
     }
 
     public ClientRSocketFactory frameSizeLimit(int frameSizeLimit) {
-      this.frameSizeLimit = Preconditions.assertFrameSizeLimit(frameSizeLimit);
+      this.frameSizeLimit = Preconditions.requireFrameSizeValid(frameSizeLimit);
       return this;
     }
 
@@ -592,7 +592,7 @@ public class RSocketFactory {
     }
 
     public ServerRSocketFactory frameSizeLimit(int frameSizeLimit) {
-      this.frameSizeLimit = Preconditions.assertFrameSizeLimit(frameSizeLimit);
+      this.frameSizeLimit = Preconditions.requireFrameSizeValid(frameSizeLimit);
       return this;
     }
 

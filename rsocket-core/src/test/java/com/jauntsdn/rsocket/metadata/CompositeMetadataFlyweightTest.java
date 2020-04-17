@@ -22,7 +22,6 @@ import static com.jauntsdn.rsocket.metadata.CompositeMetadataFlyweight.decodeMim
 import static org.assertj.core.api.Assertions.*;
 
 import com.jauntsdn.rsocket.test.util.ByteBufUtils;
-import com.jauntsdn.rsocket.util.NumberUtils;
 import io.netty.buffer.*;
 import io.netty.util.CharsetUtil;
 import org.junit.jupiter.api.Test;
@@ -256,7 +255,7 @@ class CompositeMetadataFlyweightTest {
     ByteBuf fakeEntry = Unpooled.buffer();
     fakeEntry.writeByte(1);
     fakeEntry.writeCharSequence("w", CharsetUtil.US_ASCII);
-    NumberUtils.encodeUnsignedMedium(fakeEntry, 456);
+    CompositeMetadataFlyweight.encodeUnsignedMedium(fakeEntry, 456);
     fakeEntry.writeChar('w');
 
     assertThatIllegalStateException()
@@ -550,5 +549,29 @@ class CompositeMetadataFlyweightTest {
     assertThat(badBuf.readByte()).isEqualTo((byte) 10);
     assertThat(badBuf.readCharSequence(11, CharsetUtil.UTF_8)).hasToString("custom/type");
     assertThat(badBuf.readUnsignedMedium()).isEqualTo(0);
+  }
+
+  @Test
+  void encodeUnsignedMedium() {
+    ByteBuf buffer = ByteBufAllocator.DEFAULT.buffer();
+    CompositeMetadataFlyweight.encodeUnsignedMedium(buffer, 129);
+    buffer.markReaderIndex();
+
+    assertThat(buffer.readUnsignedMedium()).as("reading as unsigned medium").isEqualTo(129);
+
+    buffer.resetReaderIndex();
+    assertThat(buffer.readMedium()).as("reading as signed medium").isEqualTo(129);
+  }
+
+  @Test
+  void encodeUnsignedMediumLarge() {
+    ByteBuf buffer = ByteBufAllocator.DEFAULT.buffer();
+    CompositeMetadataFlyweight.encodeUnsignedMedium(buffer, 0xFFFFFC);
+    buffer.markReaderIndex();
+
+    assertThat(buffer.readUnsignedMedium()).as("reading as unsigned medium").isEqualTo(16777212);
+
+    buffer.resetReaderIndex();
+    assertThat(buffer.readMedium()).as("reading as signed medium").isEqualTo(-4);
   }
 }

@@ -1,6 +1,6 @@
 package com.jauntsdn.rsocket.rpc.frames;
 
-import com.jauntsdn.rsocket.util.NumberUtils;
+import com.jauntsdn.rsocket.util.Preconditions;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.ByteBufUtil;
@@ -24,11 +24,11 @@ public class Metadata {
       ByteBuf metadata) {
     ByteBuf byteBuf = allocator.buffer().writeShort(VERSION);
 
-    int serviceLength = NumberUtils.requireUnsignedShort(ByteBufUtil.utf8Bytes(service));
+    int serviceLength = Preconditions.requireUnsignedShort(ByteBufUtil.utf8Bytes(service));
     byteBuf.writeShort(serviceLength);
     ByteBufUtil.reserveAndWriteUtf8(byteBuf, service, serviceLength);
 
-    int methodLength = NumberUtils.requireUnsignedShort(ByteBufUtil.utf8Bytes(method));
+    int methodLength = Preconditions.requireUnsignedShort(ByteBufUtil.utf8Bytes(method));
     byteBuf.writeShort(methodLength);
     ByteBufUtil.reserveAndWriteUtf8(byteBuf, method, methodLength);
 

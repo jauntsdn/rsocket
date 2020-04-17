@@ -24,7 +24,6 @@ import com.jauntsdn.rsocket.metadata.CompositeMetadata.Entry;
 import com.jauntsdn.rsocket.metadata.CompositeMetadata.ReservedMimeTypeEntry;
 import com.jauntsdn.rsocket.metadata.CompositeMetadata.WellKnownMimeTypeEntry;
 import com.jauntsdn.rsocket.test.util.ByteBufUtils;
-import com.jauntsdn.rsocket.util.NumberUtils;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.CompositeByteBuf;
@@ -63,7 +62,7 @@ class CompositeMetadataTest {
     ByteBuf fakeEntry = Unpooled.buffer();
     fakeEntry.writeByte(1);
     fakeEntry.writeCharSequence("w", CharsetUtil.US_ASCII);
-    NumberUtils.encodeUnsignedMedium(fakeEntry, 456);
+    CompositeMetadataFlyweight.encodeUnsignedMedium(fakeEntry, 456);
     fakeEntry.writeChar('w');
     CompositeMetadata compositeMetadata = new CompositeMetadata(fakeEntry, false);
 
