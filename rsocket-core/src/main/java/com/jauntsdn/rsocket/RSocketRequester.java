@@ -554,9 +554,7 @@ class RSocketRequester implements RSocket {
 
   private void handleFrame(int streamId, FrameType type, ByteBuf frame) {
     Subscriber<Payload> receiver = receivers.get(streamId);
-    if (receiver == null) {
-      handleMissingResponseProcessor(streamId, type, frame);
-    } else {
+    if (receiver != null) {
       switch (type) {
         case ERROR:
           receiver.onError(Exceptions.from(frame));
@@ -595,30 +593,6 @@ class RSocketRequester implements RSocket {
               "Client received supported frame on stream " + streamId + ": " + frame.toString());
       }
     }
-  }
-
-  private void handleMissingResponseProcessor(int streamId, FrameType type, ByteBuf frame) {
-    if (!streamIdSupplier.isBeforeOrCurrent(streamId)) {
-      if (type == FrameType.ERROR) {
-        // message for stream that has never existed, we have a problem with
-        // the overall connection and must tear down
-        String errorMessage = ErrorFrameFlyweight.dataUtf8(frame);
-
-        throw new IllegalStateException(
-            "Client received error for non-existent stream: "
-                + streamId
-                + " Message: "
-                + errorMessage);
-      } else {
-        throw new IllegalStateException(
-            "Client received message for non-existent stream: "
-                + streamId
-                + ", frame type: "
-                + type);
-      }
-    }
-    // receiving a frame after a given stream has been cancelled/completed,
-    // so ignore (cancellation is async so there is a race condition)
   }
 
   /*error is (int (KeepAlive timeout) | ClosedChannelException (dispose) | Error frame (0 error)) */

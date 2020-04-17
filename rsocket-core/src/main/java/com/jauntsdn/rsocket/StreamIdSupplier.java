@@ -16,18 +16,15 @@
 package com.jauntsdn.rsocket;
 
 import io.netty.util.collection.IntObjectMap;
-import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 
 final class StreamIdSupplier {
   private static final int MASK = 0x7FFFFFFF;
+  static final int MAX_STREAM_ID = Integer.MAX_VALUE;
 
-  private static final AtomicLongFieldUpdater<StreamIdSupplier> STREAM_ID =
-      AtomicLongFieldUpdater.newUpdater(StreamIdSupplier.class, "streamId");
-  private volatile long streamId;
+  long lastStreamId;
 
-  // Visible for testing
   StreamIdSupplier(int streamId) {
-    this.streamId = streamId;
+    this.lastStreamId = streamId;
   }
 
   static StreamIdSupplier clientSupplier() {
@@ -39,14 +36,17 @@ final class StreamIdSupplier {
   }
 
   int nextStreamId(IntObjectMap<?> streamIds) {
-    int streamId;
+    int wrappedStreamId;
+    long streamId = lastStreamId;
     do {
-      streamId = (int) STREAM_ID.addAndGet(this, 2) & MASK;
-    } while (streamId == 0 || streamIds.containsKey(streamId));
-    return streamId;
-  }
-
-  boolean isBeforeOrCurrent(int streamId) {
-    return this.streamId >= streamId && streamId > 0;
+      streamId = streamId + 2;
+      if (streamId <= MAX_STREAM_ID) {
+        lastStreamId = streamId;
+        return (int) streamId;
+      }
+      wrappedStreamId = (int) (streamId & MASK);
+    } while (wrappedStreamId == 0 || streamIds.containsKey(wrappedStreamId));
+    lastStreamId = streamId;
+    return wrappedStreamId;
   }
 }
