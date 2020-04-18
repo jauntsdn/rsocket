@@ -90,7 +90,7 @@ public class RSocketFactory {
     private static final String CLIENT_TAG = "client";
     private static final int KEEPALIVE_MIN_INTERVAL_MILLIS = 100;
 
-    private SocketAcceptor acceptor = (setup, sendingSocket) -> Mono.just(new AbstractRSocket() {});
+    private ClientSocketAcceptor acceptor = (setup, sendingSocket) -> new AbstractRSocket() {};
 
     private Consumer<Throwable> errorConsumer = Throwable::printStackTrace;
     private StreamErrorMappers errorMappers = StreamErrorMappers.create();
@@ -145,8 +145,8 @@ public class RSocketFactory {
       return this;
     }
 
-    public ClientRSocketFactory addSocketAcceptorPlugin(SocketAcceptorInterceptor interceptor) {
-      plugins.addSocketAcceptorPlugin(interceptor);
+    public ClientRSocketFactory addSocketAcceptorPlugin(ClientAcceptorInterceptor interceptor) {
+      plugins.addClientAcceptorPlugin(interceptor);
       return this;
     }
 
@@ -275,15 +275,7 @@ public class RSocketFactory {
       return new StartClient(transportClient);
     }
 
-    public ClientTransportAcceptor acceptor(Function<RSocket, RSocket> acceptor) {
-      return acceptor(() -> acceptor);
-    }
-
-    public ClientTransportAcceptor acceptor(Supplier<Function<RSocket, RSocket>> acceptor) {
-      return acceptor((setup, sendingSocket) -> Mono.just(acceptor.get().apply(sendingSocket)));
-    }
-
-    public ClientTransportAcceptor acceptor(SocketAcceptor acceptor) {
+    public ClientTransportAcceptor acceptor(ClientSocketAcceptor acceptor) {
       this.acceptor = acceptor;
       return StartClient::new;
     }
@@ -392,12 +384,12 @@ public class RSocketFactory {
 
                   RSocket wrappedRSocketRequester = plugins.applyRequester(rSocketRequester);
 
-                  return plugins
-                      .applySocketAcceptorInterceptor(acceptor)
-                      .accept(connectionSetupPayload, wrappedRSocketRequester)
-                      .flatMap(
-                          rSocketHandler -> {
-                            RSocket wrappedRSocketHandler = plugins.applyResponder(rSocketHandler);
+                  RSocket rSocketHandler =
+                      plugins
+                          .applyClientSocketAcceptor(acceptor)
+                          .accept(connectionSetupPayload, wrappedRSocketRequester);
+
+                  RSocket wrappedRSocketHandler = plugins.applyResponder(rSocketHandler);
 
                             RSocket rSocketResponder =
                                 rSocketsFactory.createResponder(
@@ -408,10 +400,7 @@ public class RSocketFactory {
                                     errorConsumer,
                                     errorFrameMapper);
 
-                            return wrappedConnection
-                                .sendOne(setupFrame)
-                                .thenReturn(wrappedRSocketRequester);
-                          });
+                  return wrappedConnection.sendOne(setupFrame).thenReturn(wrappedRSocketRequester);
                 });
       }
 
@@ -469,7 +458,7 @@ public class RSocketFactory {
   public static class ServerRSocketFactory {
     private static final String SERVER_TAG = "server";
 
-    private SocketAcceptor acceptor;
+    private ServerSocketAcceptor acceptor;
     private PayloadDecoder payloadDecoder = PayloadDecoder.ZERO_COPY;
     private Consumer<Throwable> errorConsumer = Throwable::printStackTrace;
     private StreamErrorMappers errorMappers = StreamErrorMappers.create();
@@ -513,12 +502,12 @@ public class RSocketFactory {
       return this;
     }
 
-    public ServerRSocketFactory addSocketAcceptorPlugin(SocketAcceptorInterceptor interceptor) {
-      plugins.addSocketAcceptorPlugin(interceptor);
+    public ServerRSocketFactory addSocketAcceptorPlugin(ServerAcceptorInterceptor interceptor) {
+      plugins.addServerAcceptorPlugin(interceptor);
       return this;
     }
 
-    public ServerTransportAcceptor acceptor(SocketAcceptor acceptor) {
+    public ServerTransportAcceptor acceptor(ServerSocketAcceptor acceptor) {
       this.acceptor = acceptor;
       return ServerStart::new;
     }
@@ -738,7 +727,7 @@ public class RSocketFactory {
                       RSocket wrappedRSocketRequester = plugins.applyRequester(rSocketRequester);
 
                       return plugins
-                          .applySocketAcceptorInterceptor(acceptor)
+                          .applyServerSocketAcceptor(acceptor)
                           .accept(setupPayload, wrappedRSocketRequester)
                           .onErrorResume(
                               err ->

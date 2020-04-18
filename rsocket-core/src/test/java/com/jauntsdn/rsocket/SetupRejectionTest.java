@@ -110,7 +110,7 @@ public class SetupRejectionTest {
         .verify(Duration.ofSeconds(5));
   }
 
-  private static class RejectingAcceptor implements SocketAcceptor {
+  private static class RejectingAcceptor implements ServerSocketAcceptor {
     private final String errorMessage;
     private final UnicastProcessor<RSocket> senderRSockets = UnicastProcessor.create();
 
