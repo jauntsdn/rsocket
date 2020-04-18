@@ -87,10 +87,9 @@ public class PluginRegistry {
     return acceptor;
   }
 
-  public DuplexConnection applyConnection(
-      DuplexConnectionInterceptor.Type type, DuplexConnection connection) {
+  public DuplexConnection applyConnection(DuplexConnection connection) {
     for (DuplexConnectionInterceptor i : connections) {
-      connection = i.apply(type, connection);
+      connection = i.apply(connection);
     }
 
     return connection;

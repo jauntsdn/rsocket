@@ -17,15 +17,12 @@
 package com.jauntsdn.rsocket.micrometer;
 
 import static com.jauntsdn.rsocket.frame.FrameType.*;
-import static com.jauntsdn.rsocket.plugins.DuplexConnectionInterceptor.Type.CLIENT;
-import static com.jauntsdn.rsocket.plugins.DuplexConnectionInterceptor.Type.SERVER;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 import static org.mockito.Mockito.*;
 
 import com.jauntsdn.rsocket.DuplexConnection;
 import com.jauntsdn.rsocket.frame.FrameType;
-import com.jauntsdn.rsocket.plugins.DuplexConnectionInterceptor.Type;
 import com.jauntsdn.rsocket.test.TestFrames;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Tag;
@@ -46,19 +43,11 @@ final class MicrometerDuplexConnectionTest {
 
   private final SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
 
-  @DisplayName("constructor throws NullPointerException with null connectionType")
-  @Test
-  void constructorNullConnectionType() {
-    assertThatNullPointerException()
-        .isThrownBy(() -> new MicrometerDuplexConnection(null, delegate, meterRegistry))
-        .withMessage("connectionType must not be null");
-  }
-
   @DisplayName("constructor throws NullPointerException with null delegate")
   @Test
   void constructorNullDelegate() {
     assertThatNullPointerException()
-        .isThrownBy(() -> new MicrometerDuplexConnection(CLIENT, null, meterRegistry))
+        .isThrownBy(() -> new MicrometerDuplexConnection(null, meterRegistry))
         .withMessage("delegate must not be null");
   }
 
@@ -67,21 +56,19 @@ final class MicrometerDuplexConnectionTest {
   void constructorNullMeterRegistry() {
 
     assertThatNullPointerException()
-        .isThrownBy(() -> new MicrometerDuplexConnection(CLIENT, delegate, null))
+        .isThrownBy(() -> new MicrometerDuplexConnection(delegate, null))
         .withMessage("meterRegistry must not be null");
   }
 
   @DisplayName("dispose gathers metrics")
   @Test
   void dispose() {
-    new MicrometerDuplexConnection(
-            CLIENT, delegate, meterRegistry, Tag.of("test-key", "test-value"))
+    new MicrometerDuplexConnection(delegate, meterRegistry, Tag.of("test-key", "test-value"))
         .dispose();
 
     assertThat(
             meterRegistry
                 .get("rsocket.duplex.connection.dispose")
-                .tag("connection.type", CLIENT.name())
                 .tag("test-key", "test-value")
                 .counter()
                 .count())
@@ -93,15 +80,13 @@ final class MicrometerDuplexConnectionTest {
   void onClose() {
     when(delegate.onClose()).thenReturn(Mono.empty());
 
-    new MicrometerDuplexConnection(
-            CLIENT, delegate, meterRegistry, Tag.of("test-key", "test-value"))
+    new MicrometerDuplexConnection(delegate, meterRegistry, Tag.of("test-key", "test-value"))
         .onClose()
         .subscribe(Operators.drainSubscriber());
 
     assertThat(
             meterRegistry
                 .get("rsocket.duplex.connection.close")
-                .tag("connection.type", CLIENT.name())
                 .tag("test-key", "test-value")
                 .counter()
                 .count())
@@ -128,25 +113,24 @@ final class MicrometerDuplexConnectionTest {
 
     when(delegate.receive()).thenReturn(frames);
 
-    new MicrometerDuplexConnection(
-            CLIENT, delegate, meterRegistry, Tag.of("test-key", "test-value"))
+    new MicrometerDuplexConnection(delegate, meterRegistry, Tag.of("test-key", "test-value"))
         .receive()
         .as(StepVerifier::create)
         .expectNextCount(12)
         .verifyComplete();
 
-    assertThat(findCounter(CLIENT, CANCEL).count()).isEqualTo(1);
-    assertThat(findCounter(CLIENT, COMPLETE).count()).isEqualTo(1);
-    assertThat(findCounter(CLIENT, ERROR).count()).isEqualTo(1);
-    assertThat(findCounter(CLIENT, KEEPALIVE).count()).isEqualTo(1);
-    assertThat(findCounter(CLIENT, LEASE).count()).isEqualTo(1);
-    assertThat(findCounter(CLIENT, METADATA_PUSH).count()).isEqualTo(1);
-    assertThat(findCounter(CLIENT, REQUEST_CHANNEL).count()).isEqualTo(1);
-    assertThat(findCounter(CLIENT, REQUEST_FNF).count()).isEqualTo(1);
-    assertThat(findCounter(CLIENT, REQUEST_N).count()).isEqualTo(1);
-    assertThat(findCounter(CLIENT, REQUEST_RESPONSE).count()).isEqualTo(1);
-    assertThat(findCounter(CLIENT, REQUEST_STREAM).count()).isEqualTo(1);
-    assertThat(findCounter(CLIENT, SETUP).count()).isEqualTo(1);
+    assertThat(findCounter(CANCEL).count()).isEqualTo(1);
+    assertThat(findCounter(COMPLETE).count()).isEqualTo(1);
+    assertThat(findCounter(ERROR).count()).isEqualTo(1);
+    assertThat(findCounter(KEEPALIVE).count()).isEqualTo(1);
+    assertThat(findCounter(LEASE).count()).isEqualTo(1);
+    assertThat(findCounter(METADATA_PUSH).count()).isEqualTo(1);
+    assertThat(findCounter(REQUEST_CHANNEL).count()).isEqualTo(1);
+    assertThat(findCounter(REQUEST_FNF).count()).isEqualTo(1);
+    assertThat(findCounter(REQUEST_N).count()).isEqualTo(1);
+    assertThat(findCounter(REQUEST_RESPONSE).count()).isEqualTo(1);
+    assertThat(findCounter(REQUEST_STREAM).count()).isEqualTo(1);
+    assertThat(findCounter(SETUP).count()).isEqualTo(1);
   }
 
   @DisplayName("send gathers metrics")
@@ -171,41 +155,38 @@ final class MicrometerDuplexConnectionTest {
             TestFrames.createTestRequestStreamFrame(),
             TestFrames.createTestSetupFrame());
 
-    new MicrometerDuplexConnection(
-            SERVER, delegate, meterRegistry, Tag.of("test-key", "test-value"))
+    new MicrometerDuplexConnection(delegate, meterRegistry, Tag.of("test-key", "test-value"))
         .send(frames)
         .as(StepVerifier::create)
         .verifyComplete();
 
     StepVerifier.create(captor.getValue()).expectNextCount(12).verifyComplete();
 
-    assertThat(findCounter(SERVER, CANCEL).count()).isEqualTo(1);
-    assertThat(findCounter(SERVER, COMPLETE).count()).isEqualTo(1);
-    assertThat(findCounter(SERVER, ERROR).count()).isEqualTo(1);
-    assertThat(findCounter(SERVER, KEEPALIVE).count()).isEqualTo(1);
-    assertThat(findCounter(SERVER, LEASE).count()).isEqualTo(1);
-    assertThat(findCounter(SERVER, METADATA_PUSH).count()).isEqualTo(1);
-    assertThat(findCounter(SERVER, REQUEST_CHANNEL).count()).isEqualTo(1);
-    assertThat(findCounter(SERVER, REQUEST_FNF).count()).isEqualTo(1);
-    assertThat(findCounter(SERVER, REQUEST_N).count()).isEqualTo(1);
-    assertThat(findCounter(SERVER, REQUEST_RESPONSE).count()).isEqualTo(1);
-    assertThat(findCounter(SERVER, REQUEST_STREAM).count()).isEqualTo(1);
-    assertThat(findCounter(SERVER, SETUP).count()).isEqualTo(1);
+    assertThat(findCounter(CANCEL).count()).isEqualTo(1);
+    assertThat(findCounter(COMPLETE).count()).isEqualTo(1);
+    assertThat(findCounter(ERROR).count()).isEqualTo(1);
+    assertThat(findCounter(KEEPALIVE).count()).isEqualTo(1);
+    assertThat(findCounter(LEASE).count()).isEqualTo(1);
+    assertThat(findCounter(METADATA_PUSH).count()).isEqualTo(1);
+    assertThat(findCounter(REQUEST_CHANNEL).count()).isEqualTo(1);
+    assertThat(findCounter(REQUEST_FNF).count()).isEqualTo(1);
+    assertThat(findCounter(REQUEST_N).count()).isEqualTo(1);
+    assertThat(findCounter(REQUEST_RESPONSE).count()).isEqualTo(1);
+    assertThat(findCounter(REQUEST_STREAM).count()).isEqualTo(1);
+    assertThat(findCounter(SETUP).count()).isEqualTo(1);
   }
 
   @DisplayName("send throws NullPointerException with null frames")
   @Test
   void sendNullFrames() {
     assertThatNullPointerException()
-        .isThrownBy(
-            () -> new MicrometerDuplexConnection(CLIENT, delegate, meterRegistry).send(null))
+        .isThrownBy(() -> new MicrometerDuplexConnection(delegate, meterRegistry).send(null))
         .withMessage("frames must not be null");
   }
 
-  private Counter findCounter(Type connectionType, FrameType frameType) {
+  private Counter findCounter(FrameType frameType) {
     return meterRegistry
         .get("rsocket.frame")
-        .tag("connection.type", connectionType.name())
         .tag("frame.type", frameType.name())
         .tag("test-key", "test-value")
         .counter();

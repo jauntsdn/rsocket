@@ -21,7 +21,6 @@ import static com.jauntsdn.rsocket.frame.FrameType.*;
 import com.jauntsdn.rsocket.DuplexConnection;
 import com.jauntsdn.rsocket.frame.FrameHeaderFlyweight;
 import com.jauntsdn.rsocket.frame.FrameType;
-import com.jauntsdn.rsocket.plugins.DuplexConnectionInterceptor.Type;
 import io.micrometer.core.instrument.*;
 import io.netty.buffer.ByteBuf;
 import java.util.Objects;
@@ -37,10 +36,9 @@ import reactor.core.scheduler.Scheduler;
  * An implementation of {@link DuplexConnection} that intercepts frames and gathers Micrometer
  * metrics about them.
  *
- * <p>The metric is called {@code rsocket.frame} and is tagged with {@code connection.type} ({@link
- * Type}), {@code frame.type} ({@link FrameType}), and any additional configured tags. {@code
- * rsocket.duplex.connection.close} and {@code rsocket.duplex.connection.dispose} metrics, tagged
- * with {@code connection.type} ({@link Type}) and any additional configured tags are also
+ * <p>The metric is called {@code rsocket.frame} and is tagged with {@code frame.type} ({@link
+ * FrameType}), and any additional configured tags. {@code rsocket.duplex.connection.close} and
+ * {@code rsocket.duplex.connection.dispose} metrics. Any additional configured tags are also
  * collected.
  *
  * @see <a href="https://micrometer.io">Micrometer</a>
@@ -58,29 +56,20 @@ final class MicrometerDuplexConnection implements DuplexConnection {
   /**
    * Creates a new {@link DuplexConnection}.
    *
-   * @param connectionType the type of connection being monitored
    * @param delegate the {@link DuplexConnection} to delegate to
    * @param meterRegistry the {@link MeterRegistry} to use
    * @param tags additional tags to attach to {@link Meter}s
    * @throws NullPointerException if {@code connectionType}, {@code delegate}, or {@code
    *     meterRegistry} is {@code null}
    */
-  MicrometerDuplexConnection(
-      Type connectionType, DuplexConnection delegate, MeterRegistry meterRegistry, Tag... tags) {
+  MicrometerDuplexConnection(DuplexConnection delegate, MeterRegistry meterRegistry, Tag... tags) {
 
-    Objects.requireNonNull(connectionType, "connectionType must not be null");
     this.delegate = Objects.requireNonNull(delegate, "delegate must not be null");
     Objects.requireNonNull(meterRegistry, "meterRegistry must not be null");
 
-    this.close =
-        meterRegistry.counter(
-            "rsocket.duplex.connection.close",
-            Tags.of(tags).and("connection.type", connectionType.name()));
-    this.dispose =
-        meterRegistry.counter(
-            "rsocket.duplex.connection.dispose",
-            Tags.of(tags).and("connection.type", connectionType.name()));
-    this.frameCounters = new FrameCounters(connectionType, meterRegistry, tags);
+    this.close = meterRegistry.counter("rsocket.duplex.connection.close", Tags.of(tags));
+    this.dispose = meterRegistry.counter("rsocket.duplex.connection.dispose", Tags.of(tags));
+    this.frameCounters = new FrameCounters(meterRegistry, tags);
   }
 
   @Override
@@ -153,40 +142,36 @@ final class MicrometerDuplexConnection implements DuplexConnection {
 
     private final Counter unknown;
 
-    private FrameCounters(Type connectionType, MeterRegistry meterRegistry, Tag... tags) {
-      this.cancel = counter(connectionType, meterRegistry, CANCEL, tags);
-      this.complete = counter(connectionType, meterRegistry, COMPLETE, tags);
-      this.error = counter(connectionType, meterRegistry, ERROR, tags);
-      this.extension = counter(connectionType, meterRegistry, EXT, tags);
-      this.keepalive = counter(connectionType, meterRegistry, KEEPALIVE, tags);
-      this.lease = counter(connectionType, meterRegistry, LEASE, tags);
-      this.metadataPush = counter(connectionType, meterRegistry, METADATA_PUSH, tags);
-      this.next = counter(connectionType, meterRegistry, NEXT, tags);
-      this.nextComplete = counter(connectionType, meterRegistry, NEXT_COMPLETE, tags);
-      this.payload = counter(connectionType, meterRegistry, PAYLOAD, tags);
-      this.requestChannel = counter(connectionType, meterRegistry, REQUEST_CHANNEL, tags);
-      this.requestFireAndForget = counter(connectionType, meterRegistry, REQUEST_FNF, tags);
-      this.requestN = counter(connectionType, meterRegistry, REQUEST_N, tags);
-      this.requestResponse = counter(connectionType, meterRegistry, REQUEST_RESPONSE, tags);
-      this.requestStream = counter(connectionType, meterRegistry, REQUEST_STREAM, tags);
-      this.resume = counter(connectionType, meterRegistry, RESUME, tags);
-      this.resumeOk = counter(connectionType, meterRegistry, RESUME_OK, tags);
-      this.setup = counter(connectionType, meterRegistry, SETUP, tags);
-      this.unknown = counter(connectionType, meterRegistry, "UNKNOWN", tags);
+    private FrameCounters(MeterRegistry meterRegistry, Tag... tags) {
+      this.cancel = counter(meterRegistry, CANCEL, tags);
+      this.complete = counter(meterRegistry, COMPLETE, tags);
+      this.error = counter(meterRegistry, ERROR, tags);
+      this.extension = counter(meterRegistry, EXT, tags);
+      this.keepalive = counter(meterRegistry, KEEPALIVE, tags);
+      this.lease = counter(meterRegistry, LEASE, tags);
+      this.metadataPush = counter(meterRegistry, METADATA_PUSH, tags);
+      this.next = counter(meterRegistry, NEXT, tags);
+      this.nextComplete = counter(meterRegistry, NEXT_COMPLETE, tags);
+      this.payload = counter(meterRegistry, PAYLOAD, tags);
+      this.requestChannel = counter(meterRegistry, REQUEST_CHANNEL, tags);
+      this.requestFireAndForget = counter(meterRegistry, REQUEST_FNF, tags);
+      this.requestN = counter(meterRegistry, REQUEST_N, tags);
+      this.requestResponse = counter(meterRegistry, REQUEST_RESPONSE, tags);
+      this.requestStream = counter(meterRegistry, REQUEST_STREAM, tags);
+      this.resume = counter(meterRegistry, RESUME, tags);
+      this.resumeOk = counter(meterRegistry, RESUME_OK, tags);
+      this.setup = counter(meterRegistry, SETUP, tags);
+      this.unknown = counter(meterRegistry, "UNKNOWN", tags);
     }
 
-    private static Counter counter(
-        Type connectionType, MeterRegistry meterRegistry, FrameType frameType, Tag... tags) {
+    private static Counter counter(MeterRegistry meterRegistry, FrameType frameType, Tag... tags) {
 
-      return counter(connectionType, meterRegistry, frameType.name(), tags);
+      return counter(meterRegistry, frameType.name(), tags);
     }
 
-    private static Counter counter(
-        Type connectionType, MeterRegistry meterRegistry, String frameType, Tag... tags) {
+    private static Counter counter(MeterRegistry meterRegistry, String frameType, Tag... tags) {
 
-      return meterRegistry.counter(
-          "rsocket.frame",
-          Tags.of(tags).and("connection.type", connectionType.name()).and("frame.type", frameType));
+      return meterRegistry.counter("rsocket.frame", Tags.of(tags).and("frame.type", frameType));
     }
 
     @Override

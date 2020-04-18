@@ -20,7 +20,6 @@ import com.jauntsdn.rsocket.Closeable;
 import com.jauntsdn.rsocket.DuplexConnection;
 import com.jauntsdn.rsocket.frame.FrameHeaderFlyweight;
 import com.jauntsdn.rsocket.frame.FrameUtil;
-import com.jauntsdn.rsocket.plugins.DuplexConnectionInterceptor;
 import com.jauntsdn.rsocket.plugins.PluginRegistry;
 import io.netty.buffer.ByteBuf;
 import org.reactivestreams.Publisher;
@@ -54,27 +53,15 @@ public class ClientServerInputMultiplexer implements Closeable {
   private final DuplexConnection source;
   private final DuplexConnection clientServerConnection;
 
-  public ClientServerInputMultiplexer(DuplexConnection source) {
-    this(source, emptyPluginRegistry, false);
-  }
-
-  public ClientServerInputMultiplexer(
-      DuplexConnection source, PluginRegistry plugins, boolean isClient) {
+  public ClientServerInputMultiplexer(DuplexConnection source, boolean isClient) {
     this.source = source;
     final MonoProcessor<Flux<ByteBuf>> setup = MonoProcessor.create();
     final MonoProcessor<Flux<ByteBuf>> server = MonoProcessor.create();
     final MonoProcessor<Flux<ByteBuf>> client = MonoProcessor.create();
 
-    source = plugins.applyConnection(DuplexConnectionInterceptor.Type.SOURCE, source);
-    setupConnection =
-        plugins.applyConnection(
-            DuplexConnectionInterceptor.Type.SETUP, new InternalDuplexConnection(source, setup));
-    serverConnection =
-        plugins.applyConnection(
-            DuplexConnectionInterceptor.Type.SERVER, new InternalDuplexConnection(source, server));
-    clientConnection =
-        plugins.applyConnection(
-            DuplexConnectionInterceptor.Type.CLIENT, new InternalDuplexConnection(source, client));
+    setupConnection = new InternalDuplexConnection(source, setup);
+    serverConnection = new InternalDuplexConnection(source, server);
+    clientConnection = new InternalDuplexConnection(source, client);
     clientServerConnection = new InternalDuplexConnection(source, client, server);
 
     source
@@ -82,32 +69,26 @@ public class ClientServerInputMultiplexer implements Closeable {
         .groupBy(
             frame -> {
               int streamId = FrameHeaderFlyweight.streamId(frame);
-              final DuplexConnectionInterceptor.Type type;
+              final ConnectionType type;
               if (streamId == 0) {
                 switch (FrameHeaderFlyweight.frameType(frame)) {
                   case SETUP:
                   case RESUME:
                   case RESUME_OK:
-                    type = DuplexConnectionInterceptor.Type.SETUP;
+                    type = ConnectionType.SETUP;
                     break;
                   case LEASE:
                   case KEEPALIVE:
                   case ERROR:
-                    type =
-                        isClient
-                            ? DuplexConnectionInterceptor.Type.CLIENT
-                            : DuplexConnectionInterceptor.Type.SERVER;
+                    type = isClient ? ConnectionType.CLIENT : ConnectionType.SERVER;
                     break;
                   default:
-                    type =
-                        isClient
-                            ? DuplexConnectionInterceptor.Type.SERVER
-                            : DuplexConnectionInterceptor.Type.CLIENT;
+                    type = isClient ? ConnectionType.SERVER : ConnectionType.CLIENT;
                 }
               } else if ((streamId & 0b1) == 0) {
-                type = DuplexConnectionInterceptor.Type.SERVER;
+                type = ConnectionType.SERVER;
               } else {
-                type = DuplexConnectionInterceptor.Type.CLIENT;
+                type = ConnectionType.CLIENT;
               }
               return type;
             })
@@ -164,6 +145,13 @@ public class ClientServerInputMultiplexer implements Closeable {
   @Override
   public Mono<Void> onClose() {
     return source.onClose();
+  }
+
+  private enum ConnectionType {
+    SETUP,
+    CLIENT,
+    SERVER,
+    SOURCE
   }
 
   private static class InternalDuplexConnection implements DuplexConnection {

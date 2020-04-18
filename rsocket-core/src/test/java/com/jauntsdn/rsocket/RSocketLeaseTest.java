@@ -33,7 +33,6 @@ import com.jauntsdn.rsocket.keepalive.KeepAliveHandler;
 import com.jauntsdn.rsocket.lease.Lease;
 import com.jauntsdn.rsocket.lease.RequesterLeaseHandler;
 import com.jauntsdn.rsocket.lease.ResponderLeaseHandler;
-import com.jauntsdn.rsocket.plugins.PluginRegistry;
 import com.jauntsdn.rsocket.test.util.TestClientTransport;
 import com.jauntsdn.rsocket.test.util.TestDuplexConnection;
 import com.jauntsdn.rsocket.test.util.TestServerTransport;
@@ -82,8 +81,7 @@ class RSocketLeaseTest {
         new ResponderLeaseHandler.Impl<>(
             byteBufAllocator, stats -> leaseSender, err -> {}, Optional.empty());
 
-    ClientServerInputMultiplexer multiplexer =
-        new ClientServerInputMultiplexer(connection, new PluginRegistry(), true);
+    ClientServerInputMultiplexer multiplexer = new ClientServerInputMultiplexer(connection, true);
     rSocketRequester =
         new LeaseRSocketRequester(
             byteBufAllocator,

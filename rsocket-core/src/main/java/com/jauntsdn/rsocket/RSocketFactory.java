@@ -349,10 +349,12 @@ public class RSocketFactory {
                       ConnectionSetupPayload.create(setupFrame);
 
                   KeepAliveHandler keepAliveHandler = clientSetup.keepAliveHandler();
-                  DuplexConnection wrappedConnection = clientSetup.connection();
+                  DuplexConnection clientConnection = clientSetup.connection();
+
+                  DuplexConnection wrappedConnection = plugins.applyConnection(clientConnection);
 
                   ClientServerInputMultiplexer multiplexer =
-                      new ClientServerInputMultiplexer(wrappedConnection, plugins, true);
+                      new ClientServerInputMultiplexer(wrappedConnection, true);
 
                   RSocketsFactory rSocketsFactory =
                       RSocketsFactory.createClient(
@@ -391,14 +393,14 @@ public class RSocketFactory {
 
                   RSocket wrappedRSocketHandler = plugins.applyResponder(rSocketHandler);
 
-                            RSocket rSocketResponder =
-                                rSocketsFactory.createResponder(
-                                    allocator,
-                                    multiplexer.asServerConnection(),
-                                    wrappedRSocketHandler,
-                                    payloadDecoder,
-                                    errorConsumer,
-                                    errorFrameMapper);
+                  RSocket rSocketResponder =
+                      rSocketsFactory.createResponder(
+                          allocator,
+                          multiplexer.asServerConnection(),
+                          wrappedRSocketHandler,
+                          payloadDecoder,
+                          errorConsumer,
+                          errorFrameMapper);
 
                   return wrappedConnection.sendOne(setupFrame).thenReturn(wrappedRSocketRequester);
                 });
@@ -636,9 +638,11 @@ public class RSocketFactory {
                                 new FragmentationDuplexConnection(
                                     duplexConnection, allocator, frameSizeLimit);
                           }
+                          DuplexConnection wrappedConnection =
+                              plugins.applyConnection(duplexConnection);
 
                           ClientServerInputMultiplexer multiplexer =
-                              new ClientServerInputMultiplexer(duplexConnection, plugins, false);
+                              new ClientServerInputMultiplexer(wrappedConnection, false);
 
                           return multiplexer
                               .asSetupConnection()

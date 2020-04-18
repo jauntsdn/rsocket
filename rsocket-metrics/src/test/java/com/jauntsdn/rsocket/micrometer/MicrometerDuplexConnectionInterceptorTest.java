@@ -16,7 +16,6 @@
 
 package com.jauntsdn.rsocket.micrometer;
 
-import static com.jauntsdn.rsocket.plugins.DuplexConnectionInterceptor.Type.CLIENT;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 import static org.mockito.Mockito.RETURNS_SMART_NULLS;
@@ -36,25 +35,15 @@ final class MicrometerDuplexConnectionInterceptorTest {
   @DisplayName("creates MicrometerDuplexConnection")
   @Test
   void apply() {
-    assertThat(new MicrometerDuplexConnectionInterceptor(meterRegistry).apply(CLIENT, delegate))
+    assertThat(new MicrometerDuplexConnectionInterceptor(meterRegistry).apply(delegate))
         .isInstanceOf(MicrometerDuplexConnection.class);
-  }
-
-  @DisplayName("apply throws NullPointerException with null connectionType")
-  @Test
-  void applyNullConnectionType() {
-    assertThatNullPointerException()
-        .isThrownBy(
-            () -> new MicrometerDuplexConnectionInterceptor(meterRegistry).apply(null, delegate))
-        .withMessage("connectionType must not be null");
   }
 
   @DisplayName("apply throws NullPointerException with null delegate")
   @Test
   void applyNullDelegate() {
     assertThatNullPointerException()
-        .isThrownBy(
-            () -> new MicrometerDuplexConnectionInterceptor(meterRegistry).apply(CLIENT, null))
+        .isThrownBy(() -> new MicrometerDuplexConnectionInterceptor(meterRegistry).apply(null))
         .withMessage("delegate must not be null");
   }
 

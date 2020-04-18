@@ -97,7 +97,7 @@ public class IntegrationTest {
             };
 
     connectionPlugin =
-        (type, connection) -> {
+        connection -> {
           calledFrame = true;
           return connection;
         };
