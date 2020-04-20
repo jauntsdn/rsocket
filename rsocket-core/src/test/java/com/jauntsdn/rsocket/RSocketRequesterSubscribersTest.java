@@ -65,6 +65,7 @@ class RSocketRequesterSubscribersTest {
             connection,
             PayloadDecoder.DEFAULT,
             err -> {},
+            StreamErrorMappers.create().createErrorFrameMapper(ByteBufAllocator.DEFAULT),
             StreamIdSupplier.clientSupplier(),
             100_000,
             100_000,

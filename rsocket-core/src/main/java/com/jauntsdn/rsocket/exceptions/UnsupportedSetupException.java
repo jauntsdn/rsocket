@@ -16,7 +16,7 @@
 
 package com.jauntsdn.rsocket.exceptions;
 
-import com.jauntsdn.rsocket.frame.ErrorType;
+import com.jauntsdn.rsocket.frame.ErrorCodes;
 
 /**
  * Some (or all) of the parameters specified by the client are unsupported by the server.
@@ -51,6 +51,6 @@ public final class UnsupportedSetupException extends SetupException {
 
   @Override
   public int errorCode() {
-    return ErrorType.UNSUPPORTED_SETUP;
+    return ErrorCodes.UNSUPPORTED_SETUP;
   }
 }

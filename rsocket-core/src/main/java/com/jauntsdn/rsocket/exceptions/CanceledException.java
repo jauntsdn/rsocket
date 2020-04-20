@@ -16,7 +16,7 @@
 
 package com.jauntsdn.rsocket.exceptions;
 
-import com.jauntsdn.rsocket.frame.ErrorType;
+import com.jauntsdn.rsocket.frame.ErrorCodes;
 
 /**
  * The Responder canceled the request but may have started processing it (similar to REJECTED but
@@ -52,6 +52,6 @@ public final class CanceledException extends RSocketException {
 
   @Override
   public int errorCode() {
-    return ErrorType.CANCELED;
+    return ErrorCodes.CANCELED;
   }
 }

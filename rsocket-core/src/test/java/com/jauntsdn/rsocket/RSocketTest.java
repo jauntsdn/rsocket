@@ -168,7 +168,8 @@ public class RSocketTest {
               serverConnection,
               requestAcceptor,
               PayloadDecoder.DEFAULT,
-              throwable -> serverErrors.add(throwable));
+              throwable -> serverErrors.add(throwable),
+              StreamErrorMappers.create().createErrorFrameMapper(ByteBufAllocator.DEFAULT));
 
       crs =
           new RSocketRequester(
@@ -176,6 +177,7 @@ public class RSocketTest {
               clientConnection,
               PayloadDecoder.DEFAULT,
               throwable -> clientErrors.add(throwable),
+              StreamErrorMappers.create().createErrorFrameMapper(ByteBufAllocator.DEFAULT),
               StreamIdSupplier.clientSupplier(),
               100_000,
               100_000,

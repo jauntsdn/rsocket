@@ -1,5 +1,7 @@
 package com.jauntsdn.rsocket;
 
+import static com.jauntsdn.rsocket.StreamErrorMappers.*;
+
 import com.jauntsdn.rsocket.frame.decoder.PayloadDecoder;
 import com.jauntsdn.rsocket.keepalive.KeepAliveHandler;
 import com.jauntsdn.rsocket.lease.RequesterLeaseHandler;
@@ -19,13 +21,15 @@ interface RSocketsFactory {
       DuplexConnection connection,
       RSocket requestHandler,
       PayloadDecoder payloadDecoder,
-      Consumer<Throwable> errorConsumer);
+      Consumer<Throwable> errorConsumer,
+      ErrorFrameMapper errorFrameMapper);
 
   RSocketRequester createRequester(
       ByteBufAllocator allocator,
       DuplexConnection connection,
       PayloadDecoder payloadDecoder,
       Consumer<Throwable> errorConsumer,
+      ErrorFrameMapper errorFrameMapper,
       StreamIdSupplier streamIdSupplier,
       int keepAliveTickPeriod,
       int keepAliveAckTimeout,
@@ -69,14 +73,21 @@ interface RSocketsFactory {
         DuplexConnection connection,
         RSocket requestHandler,
         PayloadDecoder payloadDecoder,
-        Consumer<Throwable> errorConsumer) {
+        Consumer<Throwable> errorConsumer,
+        ErrorFrameMapper errorFrameMapper) {
 
       ResponderLeaseHandler leaseHandler =
           new ResponderLeaseHandler.Impl<>(
               allocator, leases.sender(), errorConsumer, leases.stats());
 
       return new LeaseRSocketResponder(
-          allocator, connection, requestHandler, payloadDecoder, errorConsumer, leaseHandler);
+          allocator,
+          connection,
+          requestHandler,
+          payloadDecoder,
+          errorConsumer,
+          errorFrameMapper,
+          leaseHandler);
     }
 
     @Override
@@ -85,6 +96,7 @@ interface RSocketsFactory {
         DuplexConnection connection,
         PayloadDecoder payloadDecoder,
         Consumer<Throwable> errorConsumer,
+        ErrorFrameMapper errorFrameMapper,
         StreamIdSupplier streamIdSupplier,
         int keepAliveTickPeriod,
         int keepAliveAckTimeout,
@@ -96,6 +108,7 @@ interface RSocketsFactory {
           connection,
           payloadDecoder,
           errorConsumer,
+          errorFrameMapper,
           streamIdSupplier,
           keepAliveTickPeriod,
           keepAliveAckTimeout,
@@ -113,10 +126,11 @@ interface RSocketsFactory {
         DuplexConnection connection,
         RSocket requestHandler,
         PayloadDecoder payloadDecoder,
-        Consumer<Throwable> errorConsumer) {
+        Consumer<Throwable> errorConsumer,
+        ErrorFrameMapper errorFrameMapper) {
 
       return new RSocketResponder(
-          allocator, connection, requestHandler, payloadDecoder, errorConsumer);
+          allocator, connection, requestHandler, payloadDecoder, errorConsumer, errorFrameMapper);
     }
 
     @Override
@@ -125,6 +139,7 @@ interface RSocketsFactory {
         DuplexConnection connection,
         PayloadDecoder payloadDecoder,
         Consumer<Throwable> errorConsumer,
+        ErrorFrameMapper errorFrameMapper,
         StreamIdSupplier streamIdSupplier,
         int keepAliveTickPeriod,
         int keepAliveAckTimeout,
@@ -134,6 +149,7 @@ interface RSocketsFactory {
           connection,
           payloadDecoder,
           errorConsumer,
+          errorFrameMapper,
           streamIdSupplier,
           keepAliveTickPeriod,
           keepAliveAckTimeout,

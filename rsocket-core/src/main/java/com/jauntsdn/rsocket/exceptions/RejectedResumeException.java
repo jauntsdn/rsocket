@@ -16,7 +16,7 @@
 
 package com.jauntsdn.rsocket.exceptions;
 
-import com.jauntsdn.rsocket.frame.ErrorType;
+import com.jauntsdn.rsocket.frame.ErrorCodes;
 
 /**
  * The server rejected the resume, it can specify the reason in the payload.
@@ -51,6 +51,6 @@ public final class RejectedResumeException extends RSocketException {
 
   @Override
   public int errorCode() {
-    return ErrorType.REJECTED_RESUME;
+    return ErrorCodes.REJECTED_RESUME;
   }
 }

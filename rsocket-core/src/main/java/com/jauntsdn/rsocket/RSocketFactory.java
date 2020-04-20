@@ -16,6 +16,7 @@
 
 package com.jauntsdn.rsocket;
 
+import static com.jauntsdn.rsocket.StreamErrorMappers.*;
 import static com.jauntsdn.rsocket.internal.ClientSetup.DefaultClientSetup;
 import static com.jauntsdn.rsocket.internal.ClientSetup.ResumableClientSetup;
 
@@ -92,6 +93,7 @@ public class RSocketFactory {
     private SocketAcceptor acceptor = (setup, sendingSocket) -> Mono.just(new AbstractRSocket() {});
 
     private Consumer<Throwable> errorConsumer = Throwable::printStackTrace;
+    private StreamErrorMappers errorMappers = StreamErrorMappers.create();
     private PluginRegistry plugins = new PluginRegistry(Plugins.defaultPlugins());
 
     private Payload setupPayload = EmptyPayload.INSTANCE;
@@ -296,6 +298,15 @@ public class RSocketFactory {
       return this;
     }
 
+    /**
+     * @param errorMappers configures custom error mappers of incoming and outgoing streams.
+     * @return this {@link ClientRSocketFactory} instance
+     */
+    public ClientRSocketFactory streamErrorMapper(StreamErrorMappers errorMappers) {
+      this.errorMappers = errorMappers;
+      return this;
+    }
+
     public ClientRSocketFactory setupPayload(Payload payload) {
       this.setupPayload = payload;
       return this;
@@ -360,12 +371,16 @@ public class RSocketFactory {
                   final int keepAliveTimeout = this.keepAliveTimeout;
                   final int keepAliveTickPeriod = this.keepAliveTickPeriod;
 
+                  ErrorFrameMapper errorFrameMapper =
+                      errorMappers.createErrorFrameMapper(allocator);
+
                   RSocket rSocketRequester =
                       rSocketsFactory.createRequester(
                           allocator,
                           multiplexer.asClientConnection(),
                           payloadDecoder,
                           errorConsumer,
+                          errorFrameMapper,
                           StreamIdSupplier.clientSupplier(),
                           keepAliveTickPeriod,
                           keepAliveTimeout,
@@ -390,7 +405,8 @@ public class RSocketFactory {
                                     multiplexer.asServerConnection(),
                                     wrappedRSocketHandler,
                                     payloadDecoder,
-                                    errorConsumer);
+                                    errorConsumer,
+                                    errorFrameMapper);
 
                             return wrappedConnection
                                 .sendOne(setupFrame)
@@ -456,6 +472,7 @@ public class RSocketFactory {
     private SocketAcceptor acceptor;
     private PayloadDecoder payloadDecoder = PayloadDecoder.ZERO_COPY;
     private Consumer<Throwable> errorConsumer = Throwable::printStackTrace;
+    private StreamErrorMappers errorMappers = StreamErrorMappers.create();
     private PluginRegistry plugins = new PluginRegistry(Plugins.defaultPlugins());
 
     private boolean resumeSupported;
@@ -518,6 +535,15 @@ public class RSocketFactory {
 
     public ServerRSocketFactory errorConsumer(Consumer<Throwable> errorConsumer) {
       this.errorConsumer = errorConsumer;
+      return this;
+    }
+
+    /**
+     * @param errorMappers configures custom error mappers of incoming and outgoing streams.
+     * @return this {@link ServerRSocketFactory} instance
+     */
+    public ServerRSocketFactory streamErrorMapper(StreamErrorMappers errorMappers) {
+      this.errorMappers = errorMappers;
       return this;
     }
 
@@ -691,12 +717,16 @@ public class RSocketFactory {
                               serverConnection.scheduler(),
                               leaseConfigurer);
 
+                      ErrorFrameMapper errorFrameMapper =
+                          errorMappers.createErrorFrameMapper(allocator);
+
                       RSocket rSocketRequester =
                           rSocketsFactory.createRequester(
                               allocator,
                               serverConnection,
                               payloadDecoder,
                               errorConsumer,
+                              errorFrameMapper,
                               StreamIdSupplier.serverSupplier(),
                               0,
                               setupPayload.keepAliveMaxLifetime(),
@@ -725,7 +755,8 @@ public class RSocketFactory {
                                         wrappedMultiplexer.asClientConnection(),
                                         wrappedRSocketHandler,
                                         payloadDecoder,
-                                        errorConsumer);
+                                        errorConsumer,
+                                        errorFrameMapper);
                               })
                           .doFinally(signalType -> setupPayload.release())
                           .then();

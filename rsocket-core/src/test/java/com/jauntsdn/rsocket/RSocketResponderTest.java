@@ -146,7 +146,8 @@ public class RSocketResponderTest {
           connection,
           acceptingSocket,
           PayloadDecoder.DEFAULT,
-          throwable -> errors.add(throwable));
+          throwable -> errors.add(throwable),
+          StreamErrorMappers.create().createErrorFrameMapper(ByteBufAllocator.DEFAULT));
     }
 
     private void sendRequest(int streamId, FrameType frameType) {

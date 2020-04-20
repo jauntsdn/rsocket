@@ -234,6 +234,7 @@ public class RSocketRequesterTest {
           connection,
           PayloadDecoder.DEFAULT,
           throwable -> errors.add(throwable),
+          StreamErrorMappers.create().createErrorFrameMapper(ByteBufAllocator.DEFAULT),
           StreamIdSupplier.clientSupplier(),
           100_000,
           100_000,

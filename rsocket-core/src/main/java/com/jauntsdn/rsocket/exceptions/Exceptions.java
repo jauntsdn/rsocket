@@ -34,10 +34,12 @@ public final class Exceptions {
    */
   public static RuntimeException from(ByteBuf frame) {
     Objects.requireNonNull(frame, "frame must not be null");
-
     int errorCode = ErrorFrameFlyweight.errorCode(frame);
     String message = ErrorFrameFlyweight.dataUtf8(frame);
+    return from(errorCode, message);
+  }
 
+  public static RuntimeException from(int errorCode, String message) {
     switch (errorCode) {
       case ErrorFrameFlyweight.APPLICATION_ERROR:
         return new ApplicationErrorException(message);
@@ -64,4 +66,12 @@ public final class Exceptions {
             String.format("Invalid Error frame: %d '%s'", errorCode, message));
     }
   }
+
+  public static final String LEASE_EXPIRED_MESSAGE = "lease_expired";
+  public static final String LEASE_EXHAUSTED_MESSAGE = "lease_exhausted";
+
+  public static final RejectedException LEASE_EXPIRED_EXCEPTION =
+      new RejectedException(LEASE_EXPIRED_MESSAGE);
+  public static final RejectedException LEASE_EXHAUSTED_EXCEPTION =
+      new RejectedException(LEASE_EXHAUSTED_MESSAGE);
 }
