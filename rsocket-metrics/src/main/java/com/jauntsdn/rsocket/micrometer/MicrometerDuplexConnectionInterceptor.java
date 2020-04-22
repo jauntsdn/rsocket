@@ -17,7 +17,7 @@
 package com.jauntsdn.rsocket.micrometer;
 
 import com.jauntsdn.rsocket.DuplexConnection;
-import com.jauntsdn.rsocket.plugins.DuplexConnectionInterceptor;
+import com.jauntsdn.rsocket.interceptors.DuplexConnectionInterceptor;
 import io.micrometer.core.instrument.Meter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tag;

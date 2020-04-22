@@ -14,11 +14,10 @@
  * limitations under the License.
  */
 
-package com.jauntsdn.rsocket.plugins;
+package com.jauntsdn.rsocket.interceptors;
 
-import com.jauntsdn.rsocket.DuplexConnection;
+import com.jauntsdn.rsocket.RSocket;
 import java.util.function.Function;
 
-/** */
-@FunctionalInterface
-public interface DuplexConnectionInterceptor extends Function<DuplexConnection, DuplexConnection> {}
+/** Contract to decorate RSocket requester and responder */
+public @FunctionalInterface interface RSocketInterceptor extends Function<RSocket, RSocket> {}

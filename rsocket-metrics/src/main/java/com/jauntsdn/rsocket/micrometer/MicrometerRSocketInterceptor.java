@@ -17,7 +17,7 @@
 package com.jauntsdn.rsocket.micrometer;
 
 import com.jauntsdn.rsocket.RSocket;
-import com.jauntsdn.rsocket.plugins.RSocketInterceptor;
+import com.jauntsdn.rsocket.interceptors.RSocketInterceptor;
 import io.micrometer.core.instrument.Meter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tag;

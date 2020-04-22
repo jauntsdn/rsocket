@@ -29,7 +29,6 @@ import com.jauntsdn.rsocket.internal.ClientServerInputMultiplexer;
 import com.jauntsdn.rsocket.internal.ClientSetup;
 import com.jauntsdn.rsocket.internal.ServerSetup;
 import com.jauntsdn.rsocket.keepalive.KeepAliveHandler;
-import com.jauntsdn.rsocket.plugins.*;
 import com.jauntsdn.rsocket.resume.*;
 import com.jauntsdn.rsocket.transport.ClientTransport;
 import com.jauntsdn.rsocket.transport.ServerTransport;
@@ -44,6 +43,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Scheduler;
 
 /** Factory for creating RSocket clients and servers. */
 public class RSocketFactory {
@@ -94,7 +94,7 @@ public class RSocketFactory {
 
     private Consumer<Throwable> errorConsumer = Throwable::printStackTrace;
     private StreamErrorMappers errorMappers = StreamErrorMappers.create();
-    private PluginRegistry plugins = new PluginRegistry(Plugins.defaultPlugins());
+    private Interceptors.Configurer interceptorsConfigurer = setupPayload -> Interceptors.noop();
 
     private Payload setupPayload = EmptyPayload.INSTANCE;
     private PayloadDecoder payloadDecoder = PayloadDecoder.ZERO_COPY;
@@ -130,23 +130,17 @@ public class RSocketFactory {
       return this;
     }
 
-    public ClientRSocketFactory addConnectionPlugin(DuplexConnectionInterceptor interceptor) {
-      plugins.addConnectionPlugin(interceptor);
-      return this;
-    }
-
-    public ClientRSocketFactory addRequesterPlugin(RSocketInterceptor interceptor) {
-      plugins.addRequesterPlugin(interceptor);
-      return this;
-    }
-
-    public ClientRSocketFactory addResponderPlugin(RSocketInterceptor interceptor) {
-      plugins.addResponderPlugin(interceptor);
-      return this;
-    }
-
-    public ClientRSocketFactory addSocketAcceptorPlugin(ClientAcceptorInterceptor interceptor) {
-      plugins.addClientAcceptorPlugin(interceptor);
+    /**
+     * Adds interceptors that are called in order: connection, RSocket requester, socket acceptor,
+     * RSocket handler. Global interceptors are called first
+     *
+     * @param interceptorsConfigurer adds interceptors of connection, RSocket requester, client
+     *     socket acceptor, RSocket handler
+     * @return this {@link ClientRSocketFactory} instance
+     */
+    public ClientRSocketFactory interceptors(Interceptors.Configurer interceptorsConfigurer) {
+      Objects.requireNonNull(interceptorsConfigurer);
+      this.interceptorsConfigurer = interceptorsConfigurer;
       return this;
     }
 
@@ -348,10 +342,13 @@ public class RSocketFactory {
                   ConnectionSetupPayload connectionSetupPayload =
                       ConnectionSetupPayload.create(setupFrame);
 
+                  Scheduler scheduler = connection.scheduler();
                   KeepAliveHandler keepAliveHandler = clientSetup.keepAliveHandler();
                   DuplexConnection clientConnection = clientSetup.connection();
 
-                  DuplexConnection wrappedConnection = plugins.applyConnection(clientConnection);
+                  Interceptors interceptors = interceptorsConfigurer.configure(scheduler);
+                  DuplexConnection wrappedConnection =
+                      interceptors.interceptConnection(clientConnection);
 
                   ClientServerInputMultiplexer multiplexer =
                       new ClientServerInputMultiplexer(wrappedConnection, true);
@@ -359,7 +356,7 @@ public class RSocketFactory {
                   RSocketsFactory rSocketsFactory =
                       RSocketsFactory.createClient(
                           connectionSetupPayload.willClientHonorLease(),
-                          connection.scheduler(),
+                          scheduler,
                           leaseConfigurer);
 
                   final int keepAliveTimeout = this.keepAliveTimeout;
@@ -384,14 +381,15 @@ public class RSocketFactory {
                     rSocketRequester = new MultiSubscriberRSocket(rSocketRequester);
                   }
 
-                  RSocket wrappedRSocketRequester = plugins.applyRequester(rSocketRequester);
+                  RSocket wrappedRSocketRequester =
+                      interceptors.interceptRequester(rSocketRequester);
 
                   RSocket rSocketHandler =
-                      plugins
-                          .applyClientSocketAcceptor(acceptor)
+                      interceptors
+                          .interceptClientAcceptor(acceptor)
                           .accept(connectionSetupPayload, wrappedRSocketRequester);
 
-                  RSocket wrappedRSocketHandler = plugins.applyResponder(rSocketHandler);
+                  RSocket wrappedRSocketHandler = interceptors.interceptHandler(rSocketHandler);
 
                   RSocket rSocketResponder =
                       rSocketsFactory.createResponder(
@@ -464,7 +462,7 @@ public class RSocketFactory {
     private PayloadDecoder payloadDecoder = PayloadDecoder.ZERO_COPY;
     private Consumer<Throwable> errorConsumer = Throwable::printStackTrace;
     private StreamErrorMappers errorMappers = StreamErrorMappers.create();
-    private PluginRegistry plugins = new PluginRegistry(Plugins.defaultPlugins());
+    private Interceptors.Configurer interceptorsConfigurer = setupPayload -> Interceptors.noop();
 
     private boolean resumeSupported;
     private Duration resumeSessionDuration = Duration.ofSeconds(120);
@@ -489,23 +487,17 @@ public class RSocketFactory {
       return this;
     }
 
-    public ServerRSocketFactory addConnectionPlugin(DuplexConnectionInterceptor interceptor) {
-      plugins.addConnectionPlugin(interceptor);
-      return this;
-    }
-
-    public ServerRSocketFactory addRequesterPlugin(RSocketInterceptor interceptor) {
-      plugins.addRequesterPlugin(interceptor);
-      return this;
-    }
-
-    public ServerRSocketFactory addResponderPlugin(RSocketInterceptor interceptor) {
-      plugins.addResponderPlugin(interceptor);
-      return this;
-    }
-
-    public ServerRSocketFactory addSocketAcceptorPlugin(ServerAcceptorInterceptor interceptor) {
-      plugins.addServerAcceptorPlugin(interceptor);
+    /**
+     * Adds interceptors that are called in order: connection, RSocket requester, socket acceptor,
+     * RSocket handler. Global interceptors are called first
+     *
+     * @param interceptorsConfigurer adds interceptors of connection, RSocket requester, server
+     *     socket acceptor, RSocket handler
+     * @return this {@link ServerRSocketFactory} instance
+     */
+    public ServerRSocketFactory interceptors(Interceptors.Configurer interceptorsConfigurer) {
+      Objects.requireNonNull(interceptorsConfigurer);
+      this.interceptorsConfigurer = interceptorsConfigurer;
       return this;
     }
 
@@ -638,8 +630,11 @@ public class RSocketFactory {
                                 new FragmentationDuplexConnection(
                                     duplexConnection, allocator, frameSizeLimit);
                           }
+                          Interceptors interceptors =
+                              interceptorsConfigurer.configure(duplexConnection.scheduler());
+
                           DuplexConnection wrappedConnection =
-                              plugins.applyConnection(duplexConnection);
+                              interceptors.interceptConnection(duplexConnection);
 
                           ClientServerInputMultiplexer multiplexer =
                               new ClientServerInputMultiplexer(wrappedConnection, false);
@@ -648,17 +643,19 @@ public class RSocketFactory {
                               .asSetupConnection()
                               .receive()
                               .next()
-                              .flatMap(startFrame -> accept(startFrame, multiplexer));
+                              .flatMap(startFrame -> accept(startFrame, multiplexer, interceptors));
                         },
                         frameSizeLimit)
                     .doOnNext(c -> c.onClose().doFinally(v -> serverSetup.dispose()).subscribe());
               }
 
               private Mono<Void> accept(
-                  ByteBuf startFrame, ClientServerInputMultiplexer multiplexer) {
+                  ByteBuf startFrame,
+                  ClientServerInputMultiplexer multiplexer,
+                  Interceptors interceptors) {
                 switch (FrameHeaderFlyweight.frameType(startFrame)) {
                   case SETUP:
-                    return acceptSetup(serverSetup, startFrame, multiplexer);
+                    return acceptSetup(serverSetup, startFrame, multiplexer, interceptors);
                   case RESUME:
                     return acceptResume(serverSetup, startFrame, multiplexer);
                   default:
@@ -669,7 +666,8 @@ public class RSocketFactory {
               private Mono<Void> acceptSetup(
                   ServerSetup serverSetup,
                   ByteBuf setupFrame,
-                  ClientServerInputMultiplexer multiplexer) {
+                  ClientServerInputMultiplexer multiplexer,
+                  Interceptors interceptors) {
 
                 if (!SetupFrameFlyweight.isSupportedVersion(setupFrame)) {
                   return sendError(
@@ -728,10 +726,11 @@ public class RSocketFactory {
                       if (multiSubscriberRequester) {
                         rSocketRequester = new MultiSubscriberRSocket(rSocketRequester);
                       }
-                      RSocket wrappedRSocketRequester = plugins.applyRequester(rSocketRequester);
+                      RSocket wrappedRSocketRequester =
+                          interceptors.interceptRequester(rSocketRequester);
 
-                      return plugins
-                          .applyServerSocketAcceptor(acceptor)
+                      return interceptors
+                          .interceptServerAcceptor(acceptor)
                           .accept(setupPayload, wrappedRSocketRequester)
                           .onErrorResume(
                               err ->
@@ -740,7 +739,7 @@ public class RSocketFactory {
                           .doOnNext(
                               rSocketHandler -> {
                                 RSocket wrappedRSocketHandler =
-                                    plugins.applyResponder(rSocketHandler);
+                                    interceptors.interceptHandler(rSocketHandler);
 
                                 RSocket rSocketResponder =
                                     rSocketsFactory.createResponder(

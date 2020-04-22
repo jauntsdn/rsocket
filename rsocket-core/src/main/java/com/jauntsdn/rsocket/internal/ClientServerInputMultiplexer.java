@@ -20,7 +20,6 @@ import com.jauntsdn.rsocket.Closeable;
 import com.jauntsdn.rsocket.DuplexConnection;
 import com.jauntsdn.rsocket.frame.FrameHeaderFlyweight;
 import com.jauntsdn.rsocket.frame.FrameUtil;
-import com.jauntsdn.rsocket.plugins.PluginRegistry;
 import io.netty.buffer.ByteBuf;
 import org.reactivestreams.Publisher;
 import org.slf4j.Logger;
@@ -45,7 +44,6 @@ import reactor.core.scheduler.Scheduler;
  */
 public class ClientServerInputMultiplexer implements Closeable {
   private static final Logger LOGGER = LoggerFactory.getLogger("com.jauntsdn.rsocket.FrameLogger");
-  private static final PluginRegistry emptyPluginRegistry = new PluginRegistry();
 
   private final DuplexConnection setupConnection;
   private final DuplexConnection serverConnection;
