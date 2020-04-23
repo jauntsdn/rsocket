@@ -35,7 +35,10 @@ final class MicrometerDuplexConnectionInterceptorTest {
   @DisplayName("creates MicrometerDuplexConnection")
   @Test
   void apply() {
-    assertThat(new MicrometerDuplexConnectionInterceptor(meterRegistry).apply(delegate))
+    assertThat(
+            MicrometerDuplexConnectionInterceptors.create(meterRegistry)
+                .interceptor()
+                .apply(delegate))
         .isInstanceOf(MicrometerDuplexConnection.class);
   }
 
@@ -43,15 +46,19 @@ final class MicrometerDuplexConnectionInterceptorTest {
   @Test
   void applyNullDelegate() {
     assertThatNullPointerException()
-        .isThrownBy(() -> new MicrometerDuplexConnectionInterceptor(meterRegistry).apply(null))
-        .withMessage("delegate must not be null");
+        .isThrownBy(
+            () ->
+                MicrometerDuplexConnectionInterceptors.create(meterRegistry)
+                    .interceptor()
+                    .apply(null))
+        .withMessage("connection");
   }
 
   @DisplayName("constructor throws NullPointer exception with null meterRegistry")
   @Test
   void constructorNullMeterRegistry() {
     assertThatNullPointerException()
-        .isThrownBy(() -> new MicrometerDuplexConnectionInterceptor(null))
-        .withMessage("meterRegistry must not be null");
+        .isThrownBy(() -> MicrometerDuplexConnectionInterceptors.create(null))
+        .withMessage("meterRegistry");
   }
 }
