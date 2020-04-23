@@ -13,17 +13,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.jauntsdn.rsocket.plugins;
+package com.jauntsdn.rsocket.interceptors;
 
-import com.jauntsdn.rsocket.ClientSocketAcceptor;
+import com.jauntsdn.rsocket.ServerSocketAcceptor;
 import java.util.function.Function;
 
 /**
- * Contract to decorate a {@link ClientSocketAcceptor}, providing access to connection {@code setup}
+ * Contract to decorate a {@link ServerSocketAcceptor}, providing access to connection {@code setup}
  * information and the ability to also decorate the sockets for requesting and responding.
  *
  * <p>This can be used as an alternative to individual requester and responder {@link
- * RSocketInterceptor} plugins.
+ * RSocketInterceptor}.
  */
-public @FunctionalInterface interface ClientAcceptorInterceptor
-    extends Function<ClientSocketAcceptor, ClientSocketAcceptor> {}
+public @FunctionalInterface interface ServerAcceptorInterceptor
+    extends Function<ServerSocketAcceptor, ServerSocketAcceptor> {}
