@@ -27,9 +27,10 @@ import com.jauntsdn.rsocket.AbstractRSocket;
 import com.jauntsdn.rsocket.Payload;
 import com.jauntsdn.rsocket.RSocket;
 import com.jauntsdn.rsocket.RSocketFactory;
+import com.jauntsdn.rsocket.plugins.ClientAcceptorInterceptor;
 import com.jauntsdn.rsocket.plugins.DuplexConnectionInterceptor;
 import com.jauntsdn.rsocket.plugins.RSocketInterceptor;
-import com.jauntsdn.rsocket.plugins.SocketAcceptorInterceptor;
+import com.jauntsdn.rsocket.plugins.ServerAcceptorInterceptor;
 import com.jauntsdn.rsocket.test.TestSubscriber;
 import com.jauntsdn.rsocket.transport.netty.client.TcpClientTransport;
 import com.jauntsdn.rsocket.transport.netty.server.CloseableChannel;
@@ -51,8 +52,8 @@ public class IntegrationTest {
 
   private static final RSocketInterceptor requesterPlugin;
   private static final RSocketInterceptor responderPlugin;
-  private static final SocketAcceptorInterceptor clientAcceptorPlugin;
-  private static final SocketAcceptorInterceptor serverAcceptorPlugin;
+  private static final ClientAcceptorInterceptor clientAcceptorPlugin;
+  private static final ServerAcceptorInterceptor serverAcceptorPlugin;
   private static final DuplexConnectionInterceptor connectionPlugin;
   public static volatile boolean calledRequester = false;
   public static volatile boolean calledResponder = false;
@@ -96,7 +97,7 @@ public class IntegrationTest {
             };
 
     connectionPlugin =
-        (type, connection) -> {
+        connection -> {
           calledFrame = true;
           return connection;
         };

@@ -17,7 +17,6 @@
 package com.jauntsdn.rsocket.micrometer;
 
 import com.jauntsdn.rsocket.DuplexConnection;
-import com.jauntsdn.rsocket.frame.FrameType;
 import com.jauntsdn.rsocket.plugins.DuplexConnectionInterceptor;
 import io.micrometer.core.instrument.Meter;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -27,12 +26,6 @@ import java.util.Objects;
 /**
  * An implementation of {@link DuplexConnectionInterceptor} that intercepts frames and gathers
  * Micrometer metrics about them.
- *
- * <p>The metric is called {@code rsocket.frame} and is tagged with {@code connection.type} ({@link
- * DuplexConnectionInterceptor.Type}), {@code frame.type} ({@link FrameType}), and any additional
- * configured tags. {@code rsocket.duplex.connection.close} and {@code
- * rsocket.duplex.connection.dispose} metrics, tagged with {@code connection.type} ({@link
- * DuplexConnectionInterceptor.Type}) and any additional configured tags are also collected.
  *
  * @see <a href="https://micrometer.io">Micrometer</a>
  */
@@ -55,10 +48,9 @@ public final class MicrometerDuplexConnectionInterceptor implements DuplexConnec
   }
 
   @Override
-  public MicrometerDuplexConnection apply(Type connectionType, DuplexConnection delegate) {
-    Objects.requireNonNull(connectionType, "connectionType must not be null");
+  public MicrometerDuplexConnection apply(DuplexConnection delegate) {
     Objects.requireNonNull(delegate, "delegate must not be null");
 
-    return new MicrometerDuplexConnection(connectionType, delegate, meterRegistry, tags);
+    return new MicrometerDuplexConnection(delegate, meterRegistry, tags);
   }
 }

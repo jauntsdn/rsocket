@@ -15,15 +15,15 @@
  */
 package com.jauntsdn.rsocket.plugins;
 
-import com.jauntsdn.rsocket.SocketAcceptor;
+import com.jauntsdn.rsocket.ClientSocketAcceptor;
 import java.util.function.Function;
 
 /**
- * Contract to decorate a {@link SocketAcceptor}, providing access to connection {@code setup}
+ * Contract to decorate a {@link ClientSocketAcceptor}, providing access to connection {@code setup}
  * information and the ability to also decorate the sockets for requesting and responding.
  *
  * <p>This can be used as an alternative to individual requester and responder {@link
  * RSocketInterceptor} plugins.
  */
-public @FunctionalInterface interface SocketAcceptorInterceptor
-    extends Function<SocketAcceptor, SocketAcceptor> {}
+public @FunctionalInterface interface ClientAcceptorInterceptor
+    extends Function<ClientSocketAcceptor, ClientSocketAcceptor> {}

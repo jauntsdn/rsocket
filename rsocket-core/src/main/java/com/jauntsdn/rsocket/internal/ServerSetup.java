@@ -131,7 +131,7 @@ public interface ServerSetup {
                 .resumableConnection();
         return then.apply(
             new ResumableKeepAliveHandler(connection),
-            new ClientServerInputMultiplexer(connection));
+            new ClientServerInputMultiplexer(connection, false));
       } else {
         return then.apply(new DefaultKeepAliveHandler(multiplexer), multiplexer);
       }

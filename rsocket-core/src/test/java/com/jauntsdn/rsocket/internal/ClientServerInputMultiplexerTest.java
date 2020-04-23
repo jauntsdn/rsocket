@@ -19,7 +19,6 @@ package com.jauntsdn.rsocket.internal;
 import static org.junit.Assert.assertEquals;
 
 import com.jauntsdn.rsocket.frame.*;
-import com.jauntsdn.rsocket.plugins.PluginRegistry;
 import com.jauntsdn.rsocket.test.util.TestDuplexConnection;
 import com.jauntsdn.rsocket.util.DefaultPayload;
 import io.netty.buffer.ByteBuf;
@@ -38,8 +37,8 @@ public class ClientServerInputMultiplexerTest {
   @Before
   public void setup() {
     source = new TestDuplexConnection();
-    clientMultiplexer = new ClientServerInputMultiplexer(source, new PluginRegistry(), true);
-    serverMultiplexer = new ClientServerInputMultiplexer(source, new PluginRegistry(), false);
+    clientMultiplexer = new ClientServerInputMultiplexer(source, true);
+    serverMultiplexer = new ClientServerInputMultiplexer(source, false);
   }
 
   @Test

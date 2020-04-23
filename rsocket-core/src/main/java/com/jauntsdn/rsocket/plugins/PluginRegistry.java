@@ -16,9 +16,7 @@
 
 package com.jauntsdn.rsocket.plugins;
 
-import com.jauntsdn.rsocket.DuplexConnection;
-import com.jauntsdn.rsocket.RSocket;
-import com.jauntsdn.rsocket.SocketAcceptor;
+import com.jauntsdn.rsocket.*;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -26,7 +24,8 @@ public class PluginRegistry {
   private List<DuplexConnectionInterceptor> connections = new ArrayList<>();
   private List<RSocketInterceptor> requesters = new ArrayList<>();
   private List<RSocketInterceptor> responders = new ArrayList<>();
-  private List<SocketAcceptorInterceptor> socketAcceptorInterceptors = new ArrayList<>();
+  private List<ClientAcceptorInterceptor> clientAcceptorInterceptors = new ArrayList<>();
+  private List<ServerAcceptorInterceptor> serverAcceptorInterceptors = new ArrayList<>();
 
   public PluginRegistry() {}
 
@@ -48,8 +47,12 @@ public class PluginRegistry {
     responders.add(interceptor);
   }
 
-  public void addSocketAcceptorPlugin(SocketAcceptorInterceptor interceptor) {
-    socketAcceptorInterceptors.add(interceptor);
+  public void addClientAcceptorPlugin(ClientAcceptorInterceptor interceptor) {
+    clientAcceptorInterceptors.add(interceptor);
+  }
+
+  public void addServerAcceptorPlugin(ServerAcceptorInterceptor interceptor) {
+    serverAcceptorInterceptors.add(interceptor);
   }
 
   public RSocket applyRequester(RSocket rSocket) {
@@ -68,18 +71,25 @@ public class PluginRegistry {
     return rSocket;
   }
 
-  public SocketAcceptor applySocketAcceptorInterceptor(SocketAcceptor acceptor) {
-    for (SocketAcceptorInterceptor i : socketAcceptorInterceptors) {
+  public ClientSocketAcceptor applyClientSocketAcceptor(ClientSocketAcceptor acceptor) {
+    for (ClientAcceptorInterceptor i : clientAcceptorInterceptors) {
       acceptor = i.apply(acceptor);
     }
 
     return acceptor;
   }
 
-  public DuplexConnection applyConnection(
-      DuplexConnectionInterceptor.Type type, DuplexConnection connection) {
+  public ServerSocketAcceptor applyServerSocketAcceptor(ServerSocketAcceptor acceptor) {
+    for (ServerAcceptorInterceptor i : serverAcceptorInterceptors) {
+      acceptor = i.apply(acceptor);
+    }
+
+    return acceptor;
+  }
+
+  public DuplexConnection applyConnection(DuplexConnection connection) {
     for (DuplexConnectionInterceptor i : connections) {
-      connection = i.apply(type, connection);
+      connection = i.apply(connection);
     }
 
     return connection;
