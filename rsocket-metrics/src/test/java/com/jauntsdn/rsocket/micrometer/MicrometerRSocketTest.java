@@ -16,8 +16,8 @@
 
 package com.jauntsdn.rsocket.micrometer;
 
+import static com.jauntsdn.rsocket.micrometer.MicrometerRSocket.*;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 import static org.mockito.Mockito.RETURNS_SMART_NULLS;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -26,37 +26,20 @@ import com.jauntsdn.rsocket.Payload;
 import com.jauntsdn.rsocket.RSocket;
 import com.jauntsdn.rsocket.util.DefaultPayload;
 import io.micrometer.core.instrument.Counter;
-import io.micrometer.core.instrument.Tag;
-import io.micrometer.core.instrument.Timer;
+import io.micrometer.core.instrument.Tags;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import reactor.core.publisher.SignalType;
 import reactor.test.StepVerifier;
 
 final class MicrometerRSocketTest {
+  private static final String TAG_KEY = "test-key";
+  private static final String TAG_VALUE = "test-value";
 
   private final RSocket delegate = mock(RSocket.class, RETURNS_SMART_NULLS);
-
   private final SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
-
-  @DisplayName("constructor throws NullPointerException with null delegate")
-  @Test
-  void constructorNullDelegate() {
-    assertThatNullPointerException()
-        .isThrownBy(() -> new MicrometerRSocket(null, meterRegistry))
-        .withMessage("delegate must not be null");
-  }
-
-  @DisplayName("constructor throws NullPointerException with null meterRegistry")
-  @Test
-  void constructorNullMeterRegistry() {
-    assertThatNullPointerException()
-        .isThrownBy(() -> new MicrometerRSocket(delegate, null))
-        .withMessage("meterRegistry must not be null");
-  }
 
   @DisplayName("fireAndForget gathers metrics")
   @Test
@@ -64,12 +47,23 @@ final class MicrometerRSocketTest {
     Payload payload = DefaultPayload.create("test-metadata", "test-data");
     when(delegate.fireAndForget(payload)).thenReturn(Mono.empty());
 
-    new MicrometerRSocket(delegate, meterRegistry, Tag.of("test-key", "test-value"))
+    new Requester(
+            delegate, new ThreadLocalRSocketMeters(meterRegistry, Tags.of(TAG_KEY, TAG_VALUE)))
         .fireAndForget(payload)
         .as(StepVerifier::create)
         .verifyComplete();
 
-    assertThat(findCounter("request.fnf", SignalType.ON_COMPLETE).count()).isEqualTo(1);
+    assertThat(
+            findRequestStartedCounter(MicrometerRSocketInterceptor.TAG_INTERACTION_TYPE_FNF)
+                .count())
+        .isEqualTo(1);
+
+    assertThat(
+            findRequestCompletedCounter(
+                    MicrometerRSocketInterceptor.TAG_INTERACTION_TYPE_FNF,
+                    MicrometerRSocketInterceptor.TAG_SIGNAL_TYPE_COMPLETE)
+                .count())
+        .isEqualTo(1);
   }
 
   @DisplayName("metadataPush gathers metrics")
@@ -78,12 +72,24 @@ final class MicrometerRSocketTest {
     Payload payload = DefaultPayload.create("test-metadata", "test-data");
     when(delegate.metadataPush(payload)).thenReturn(Mono.empty());
 
-    new MicrometerRSocket(delegate, meterRegistry, Tag.of("test-key", "test-value"))
+    new Requester(
+            delegate, new ThreadLocalRSocketMeters(meterRegistry, Tags.of(TAG_KEY, TAG_VALUE)))
         .metadataPush(payload)
         .as(StepVerifier::create)
         .verifyComplete();
 
-    assertThat(findCounter("metadata.push", SignalType.ON_COMPLETE).count()).isEqualTo(1);
+    assertThat(
+            findRequestStartedCounter(
+                    MicrometerRSocketInterceptor.TAG_INTERACTION_TYPE_METADATA_PUSH)
+                .count())
+        .isEqualTo(1);
+
+    assertThat(
+            findRequestCompletedCounter(
+                    MicrometerRSocketInterceptor.TAG_INTERACTION_TYPE_METADATA_PUSH,
+                    MicrometerRSocketInterceptor.TAG_SIGNAL_TYPE_COMPLETE)
+                .count())
+        .isEqualTo(1);
   }
 
   @DisplayName("requestChannel gathers metrics")
@@ -92,12 +98,23 @@ final class MicrometerRSocketTest {
     Mono<Payload> payload = Mono.just(DefaultPayload.create("test-metadata", "test-data"));
     when(delegate.requestChannel(payload)).thenReturn(Flux.empty());
 
-    new MicrometerRSocket(delegate, meterRegistry, Tag.of("test-key", "test-value"))
+    new Requester(
+            delegate, new ThreadLocalRSocketMeters(meterRegistry, Tags.of(TAG_KEY, TAG_VALUE)))
         .requestChannel(payload)
         .as(StepVerifier::create)
         .verifyComplete();
 
-    assertThat(findCounter("request.channel", SignalType.ON_COMPLETE).count()).isEqualTo(1);
+    assertThat(
+            findRequestStartedCounter(MicrometerRSocketInterceptor.TAG_INTERACTION_TYPE_CHANNEL)
+                .count())
+        .isEqualTo(1);
+
+    assertThat(
+            findRequestCompletedCounter(
+                    MicrometerRSocketInterceptor.TAG_INTERACTION_TYPE_CHANNEL,
+                    MicrometerRSocketInterceptor.TAG_SIGNAL_TYPE_COMPLETE)
+                .count())
+        .isEqualTo(1);
   }
 
   @DisplayName("requestResponse gathers metrics")
@@ -106,12 +123,23 @@ final class MicrometerRSocketTest {
     Payload payload = DefaultPayload.create("test-metadata", "test-data");
     when(delegate.requestResponse(payload)).thenReturn(Mono.empty());
 
-    new MicrometerRSocket(delegate, meterRegistry, Tag.of("test-key", "test-value"))
+    new Requester(
+            delegate, new ThreadLocalRSocketMeters(meterRegistry, Tags.of(TAG_KEY, TAG_VALUE)))
         .requestResponse(payload)
         .as(StepVerifier::create)
         .verifyComplete();
 
-    assertThat(findTimer("request.response", SignalType.ON_COMPLETE).count()).isEqualTo(1);
+    assertThat(
+            findRequestStartedCounter(MicrometerRSocketInterceptor.TAG_INTERACTION_TYPE_RESPONSE)
+                .count())
+        .isEqualTo(1);
+
+    assertThat(
+            findRequestCompletedCounter(
+                    MicrometerRSocketInterceptor.TAG_INTERACTION_TYPE_RESPONSE,
+                    MicrometerRSocketInterceptor.TAG_SIGNAL_TYPE_COMPLETE)
+                .count())
+        .isEqualTo(1);
   }
 
   @DisplayName("requestStream gathers metrics")
@@ -120,27 +148,39 @@ final class MicrometerRSocketTest {
     Payload payload = DefaultPayload.create("test-metadata", "test-data");
     when(delegate.requestStream(payload)).thenReturn(Flux.empty());
 
-    new MicrometerRSocket(delegate, meterRegistry, Tag.of("test-key", "test-value"))
+    new Requester(
+            delegate, new ThreadLocalRSocketMeters(meterRegistry, Tags.of(TAG_KEY, TAG_VALUE)))
         .requestStream(payload)
         .as(StepVerifier::create)
         .verifyComplete();
 
-    assertThat(findCounter("request.stream", SignalType.ON_COMPLETE).count()).isEqualTo(1);
+    assertThat(
+            findRequestStartedCounter(MicrometerRSocketInterceptor.TAG_INTERACTION_TYPE_STREAM)
+                .count())
+        .isEqualTo(1);
+
+    assertThat(
+            findRequestCompletedCounter(
+                    MicrometerRSocketInterceptor.TAG_INTERACTION_TYPE_STREAM,
+                    MicrometerRSocketInterceptor.TAG_SIGNAL_TYPE_COMPLETE)
+                .count())
+        .isEqualTo(1);
   }
 
-  private Counter findCounter(String interactionModel, SignalType signalType) {
+  private Counter findRequestCompletedCounter(String interactionType, String signalType) {
     return meterRegistry
-        .get(String.format("rsocket.%s", interactionModel))
-        .tag("signal.type", signalType.name())
-        .tag("test-key", "test-value")
+        .get(MicrometerRSocketInterceptor.COUNTER_RSOCKET_REQUEST_COMPLETED)
+        .tag(MicrometerRSocketInterceptor.TAG_SIGNAL_TYPE, signalType)
+        .tag(MicrometerRSocketInterceptor.TAG_INTERACTION_TYPE, interactionType)
+        .tag(TAG_KEY, TAG_VALUE)
         .counter();
   }
 
-  private Timer findTimer(String interactionModel, SignalType signalType) {
+  private Counter findRequestStartedCounter(String interactionType) {
     return meterRegistry
-        .get(String.format("rsocket.%s", interactionModel))
-        .tag("signal.type", signalType.name())
-        .tag("test-key", "test-value")
-        .timer();
+        .get(MicrometerRSocketInterceptor.COUNTER_RSOCKET_REQUEST_STARTED)
+        .tag(MicrometerRSocketInterceptor.TAG_INTERACTION_TYPE, interactionType)
+        .tag(TAG_KEY, TAG_VALUE)
+        .counter();
   }
 }

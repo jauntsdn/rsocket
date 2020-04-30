@@ -16,88 +16,75 @@
 
 package com.jauntsdn.rsocket.micrometer;
 
-import static com.jauntsdn.rsocket.frame.FrameType.*;
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 import static org.mockito.Mockito.*;
 
 import com.jauntsdn.rsocket.DuplexConnection;
-import com.jauntsdn.rsocket.frame.FrameType;
 import com.jauntsdn.rsocket.test.TestFrames;
-import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Tag;
+import io.micrometer.core.instrument.search.MeterNotFoundException;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import io.netty.buffer.ByteBuf;
-import org.junit.jupiter.api.DisplayName;
+import io.netty.util.ReferenceCounted;
+import java.time.Duration;
+import java.util.Arrays;
+import java.util.List;
+import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Operators;
+import reactor.core.scheduler.Schedulers;
 import reactor.test.StepVerifier;
 
 final class MicrometerDuplexConnectionTest {
-
   private final DuplexConnection delegate = mock(DuplexConnection.class, RETURNS_SMART_NULLS);
-
   private final SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
 
-  @DisplayName("constructor throws NullPointerException with null delegate")
   @Test
-  void constructorNullDelegate() {
-    assertThatNullPointerException()
-        .isThrownBy(() -> new MicrometerDuplexConnection(null, meterRegistry))
-        .withMessage("delegate must not be null");
-  }
+  void openConnection() {
+    MicrometerDuplexConnectionInterceptor interceptor =
+        MicrometerDuplexConnectionInterceptors.create(
+                meterRegistry, Tag.of("test-key", "test-value"))
+            .interceptor();
+    DuplexConnection micrometerConnection = interceptor.apply(delegate);
 
-  @DisplayName("constructor throws NullPointerException with null meterRegistry")
-  @Test
-  void constructorNullMeterRegistry() {
-
-    assertThatNullPointerException()
-        .isThrownBy(() -> new MicrometerDuplexConnection(delegate, null))
-        .withMessage("meterRegistry must not be null");
-  }
-
-  @DisplayName("dispose gathers metrics")
-  @Test
-  void dispose() {
-    new MicrometerDuplexConnection(delegate, meterRegistry, Tag.of("test-key", "test-value"))
-        .dispose();
-
-    assertThat(
+    Assertions.assertThat(
             meterRegistry
-                .get("rsocket.duplex.connection.dispose")
+                .get(MicrometerDuplexConnectionInterceptor.COUNTER_CONNECTIONS_OPENED)
                 .tag("test-key", "test-value")
                 .counter()
                 .count())
         .isEqualTo(1);
   }
 
-  @DisplayName("onClose gathers metrics")
   @Test
-  void onClose() {
+  void closeConnection() {
     when(delegate.onClose()).thenReturn(Mono.empty());
 
-    new MicrometerDuplexConnection(delegate, meterRegistry, Tag.of("test-key", "test-value"))
-        .onClose()
-        .subscribe(Operators.drainSubscriber());
+    MicrometerDuplexConnectionInterceptor interceptor =
+        MicrometerDuplexConnectionInterceptors.create(
+                meterRegistry, Tag.of("test-key", "test-value"))
+            .interceptor();
+    DuplexConnection micrometerConnection = interceptor.apply(delegate);
 
-    assertThat(
+    micrometerConnection.onClose().subscribe(Operators.drainSubscriber());
+
+    Assertions.assertThat(
             meterRegistry
-                .get("rsocket.duplex.connection.close")
+                .get(MicrometerDuplexConnectionInterceptor.COUNTER_CONNECTIONS_CLOSED)
                 .tag("test-key", "test-value")
                 .counter()
                 .count())
         .isEqualTo(1);
   }
 
-  @DisplayName("receive gathers metrics")
   @Test
-  void receive() {
-    Flux<ByteBuf> frames =
-        Flux.just(
+  void inboundFrames() {
+    List<ByteBuf> frames =
+        Arrays.asList(
             TestFrames.createTestCancelFrame(),
             TestFrames.createTestErrorFrame(),
             TestFrames.createTestKeepaliveFrame(),
@@ -111,37 +98,72 @@ final class MicrometerDuplexConnectionTest {
             TestFrames.createTestRequestStreamFrame(),
             TestFrames.createTestSetupFrame());
 
-    when(delegate.receive()).thenReturn(frames);
+    int expectedTotalSize = frames.stream().mapToInt(ByteBuf::readableBytes).sum();
+    int expectedCount = frames.size();
 
-    new MicrometerDuplexConnection(delegate, meterRegistry, Tag.of("test-key", "test-value"))
+    Flux<ByteBuf> framesFlux = Flux.fromIterable(frames);
+
+    when(delegate.receive()).thenReturn(framesFlux);
+
+    MicrometerDuplexConnectionInterceptor interceptor =
+        MicrometerDuplexConnectionInterceptors.create(meterRegistry).interceptor();
+    DuplexConnection micrometerConnection = interceptor.apply(delegate);
+    micrometerConnection
         .receive()
-        .as(StepVerifier::create)
-        .expectNextCount(12)
-        .verifyComplete();
+        .doOnNext(ReferenceCounted::release)
+        .subscribe(Operators.drainSubscriber());
 
-    assertThat(findCounter(CANCEL).count()).isEqualTo(1);
-    assertThat(findCounter(COMPLETE).count()).isEqualTo(1);
-    assertThat(findCounter(ERROR).count()).isEqualTo(1);
-    assertThat(findCounter(KEEPALIVE).count()).isEqualTo(1);
-    assertThat(findCounter(LEASE).count()).isEqualTo(1);
-    assertThat(findCounter(METADATA_PUSH).count()).isEqualTo(1);
-    assertThat(findCounter(REQUEST_CHANNEL).count()).isEqualTo(1);
-    assertThat(findCounter(REQUEST_FNF).count()).isEqualTo(1);
-    assertThat(findCounter(REQUEST_N).count()).isEqualTo(1);
-    assertThat(findCounter(REQUEST_RESPONSE).count()).isEqualTo(1);
-    assertThat(findCounter(REQUEST_STREAM).count()).isEqualTo(1);
-    assertThat(findCounter(SETUP).count()).isEqualTo(1);
+    Assertions.assertThat(
+            meterRegistry
+                .get(MicrometerDuplexConnectionInterceptor.COUNTER_FRAMES_COUNT)
+                .tag(
+                    MicrometerDuplexConnectionInterceptor.TAG_FRAME_DIRECTION,
+                    MicrometerDuplexConnectionInterceptor.TAG_FRAME_DIRECTION_INBOUND)
+                .counter()
+                .count())
+        .isEqualTo(expectedCount);
+
+    org.junit.jupiter.api.Assertions.assertThrows(
+        MeterNotFoundException.class,
+        () -> {
+          meterRegistry
+              .get(MicrometerDuplexConnectionInterceptor.COUNTER_FRAMES_COUNT)
+              .tag(
+                  MicrometerDuplexConnectionInterceptor.TAG_FRAME_DIRECTION,
+                  MicrometerDuplexConnectionInterceptor.TAG_FRAME_DIRECTION_OUTBOUND)
+              .counters();
+        });
+
+    Assertions.assertThat(
+            meterRegistry
+                .get(MicrometerDuplexConnectionInterceptor.COUNTER_FRAMES_SIZE)
+                .tag(
+                    MicrometerDuplexConnectionInterceptor.TAG_FRAME_DIRECTION,
+                    MicrometerDuplexConnectionInterceptor.TAG_FRAME_DIRECTION_INBOUND)
+                .counter()
+                .count())
+        .isEqualTo(expectedTotalSize);
+
+    org.junit.jupiter.api.Assertions.assertThrows(
+        MeterNotFoundException.class,
+        () -> {
+          meterRegistry
+              .get(MicrometerDuplexConnectionInterceptor.COUNTER_FRAMES_SIZE)
+              .tag(
+                  MicrometerDuplexConnectionInterceptor.TAG_FRAME_DIRECTION,
+                  MicrometerDuplexConnectionInterceptor.TAG_FRAME_DIRECTION_OUTBOUND)
+              .counters();
+        });
   }
 
-  @DisplayName("send gathers metrics")
   @SuppressWarnings("unchecked")
   @Test
-  void send() {
+  void outboundFrames() {
     ArgumentCaptor<Publisher<ByteBuf>> captor = ArgumentCaptor.forClass(Publisher.class);
     when(delegate.send(captor.capture())).thenReturn(Mono.empty());
 
-    Flux<ByteBuf> frames =
-        Flux.just(
+    List<ByteBuf> frames =
+        Arrays.asList(
             TestFrames.createTestCancelFrame(),
             TestFrames.createTestErrorFrame(),
             TestFrames.createTestKeepaliveFrame(),
@@ -155,40 +177,150 @@ final class MicrometerDuplexConnectionTest {
             TestFrames.createTestRequestStreamFrame(),
             TestFrames.createTestSetupFrame());
 
-    new MicrometerDuplexConnection(delegate, meterRegistry, Tag.of("test-key", "test-value"))
-        .send(frames)
-        .as(StepVerifier::create)
-        .verifyComplete();
+    int expectedTotalSize = frames.stream().mapToInt(ByteBuf::readableBytes).sum();
+    int expectedCount = frames.size();
 
-    StepVerifier.create(captor.getValue()).expectNextCount(12).verifyComplete();
+    MicrometerDuplexConnectionInterceptor interceptor =
+        MicrometerDuplexConnectionInterceptors.create(meterRegistry).interceptor();
+    DuplexConnection micrometerConnection = interceptor.apply(delegate);
+    micrometerConnection.send(Flux.fromIterable(frames)).as(StepVerifier::create).verifyComplete();
 
-    assertThat(findCounter(CANCEL).count()).isEqualTo(1);
-    assertThat(findCounter(COMPLETE).count()).isEqualTo(1);
-    assertThat(findCounter(ERROR).count()).isEqualTo(1);
-    assertThat(findCounter(KEEPALIVE).count()).isEqualTo(1);
-    assertThat(findCounter(LEASE).count()).isEqualTo(1);
-    assertThat(findCounter(METADATA_PUSH).count()).isEqualTo(1);
-    assertThat(findCounter(REQUEST_CHANNEL).count()).isEqualTo(1);
-    assertThat(findCounter(REQUEST_FNF).count()).isEqualTo(1);
-    assertThat(findCounter(REQUEST_N).count()).isEqualTo(1);
-    assertThat(findCounter(REQUEST_RESPONSE).count()).isEqualTo(1);
-    assertThat(findCounter(REQUEST_STREAM).count()).isEqualTo(1);
-    assertThat(findCounter(SETUP).count()).isEqualTo(1);
+    Publisher<ByteBuf> sent = Flux.from(captor.getValue()).doOnNext(ReferenceCounted::release);
+    StepVerifier.create(sent).expectNextCount(12).verifyComplete();
+
+    Assertions.assertThat(
+            meterRegistry
+                .get(MicrometerDuplexConnectionInterceptor.COUNTER_FRAMES_COUNT)
+                .tag(
+                    MicrometerDuplexConnectionInterceptor.TAG_FRAME_DIRECTION,
+                    MicrometerDuplexConnectionInterceptor.TAG_FRAME_DIRECTION_OUTBOUND)
+                .counter()
+                .count())
+        .isEqualTo(expectedCount);
+
+    org.junit.jupiter.api.Assertions.assertThrows(
+        MeterNotFoundException.class,
+        () -> {
+          meterRegistry
+              .get(MicrometerDuplexConnectionInterceptor.COUNTER_FRAMES_COUNT)
+              .tag(
+                  MicrometerDuplexConnectionInterceptor.TAG_FRAME_DIRECTION,
+                  MicrometerDuplexConnectionInterceptor.TAG_FRAME_DIRECTION_INBOUND)
+              .counters();
+        });
+
+    Assertions.assertThat(
+            meterRegistry
+                .get(MicrometerDuplexConnectionInterceptor.COUNTER_FRAMES_SIZE)
+                .tag(
+                    MicrometerDuplexConnectionInterceptor.TAG_FRAME_DIRECTION,
+                    MicrometerDuplexConnectionInterceptor.TAG_FRAME_DIRECTION_OUTBOUND)
+                .counter()
+                .count())
+        .isEqualTo(expectedTotalSize);
+
+    org.junit.jupiter.api.Assertions.assertThrows(
+        MeterNotFoundException.class,
+        () -> {
+          meterRegistry
+              .get(MicrometerDuplexConnectionInterceptor.COUNTER_FRAMES_SIZE)
+              .tag(
+                  MicrometerDuplexConnectionInterceptor.TAG_FRAME_DIRECTION,
+                  MicrometerDuplexConnectionInterceptor.TAG_FRAME_DIRECTION_INBOUND)
+              .counters();
+        });
   }
 
-  @DisplayName("send throws NullPointerException with null frames")
   @Test
-  void sendNullFrames() {
+  void outboundNullFrames() {
     assertThatNullPointerException()
-        .isThrownBy(() -> new MicrometerDuplexConnection(delegate, meterRegistry).send(null))
-        .withMessage("frames must not be null");
+        .isThrownBy(
+            () ->
+                MicrometerDuplexConnectionInterceptors.create(meterRegistry)
+                    .interceptor()
+                    .apply(delegate)
+                    .send(null))
+        .withMessage("frames");
   }
 
-  private Counter findCounter(FrameType frameType) {
-    return meterRegistry
-        .get("rsocket.frame")
-        .tag("frame.type", frameType.name())
-        .tag("test-key", "test-value")
-        .counter();
+  @Test
+  void inboundMetersCount() {
+    int elementsCount = 2;
+    Flux<ByteBuf> source = multiThreadedFramesSource(elementsCount);
+
+    when(delegate.receive()).thenReturn(source);
+
+    MicrometerDuplexConnectionInterceptor interceptor =
+        MicrometerDuplexConnectionInterceptors.create(meterRegistry).interceptor();
+    DuplexConnection micrometerConnection = interceptor.apply(delegate);
+    micrometerConnection
+        .receive()
+        .doOnNext(ReferenceCounted::release)
+        .as(StepVerifier::create)
+        .expectNextCount(elementsCount)
+        .expectComplete()
+        .verify(Duration.ofSeconds(5));
+
+    Assertions.assertThat(
+            meterRegistry.get(MicrometerDuplexConnectionInterceptor.COUNTER_FRAMES_SIZE).counters())
+        .hasSize(1);
+    Assertions.assertThat(
+            meterRegistry
+                .get(MicrometerDuplexConnectionInterceptor.COUNTER_FRAMES_COUNT)
+                .counters())
+        .hasSize(1);
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  void outboundMetersCount() {
+    ArgumentCaptor<Publisher<ByteBuf>> captor = ArgumentCaptor.forClass(Publisher.class);
+    when(delegate.send(captor.capture())).thenReturn(Mono.empty());
+
+    int elementsCount = 2;
+    Flux<ByteBuf> source = multiThreadedFramesSource(elementsCount);
+
+    MicrometerDuplexConnectionInterceptor interceptor =
+        MicrometerDuplexConnectionInterceptors.create(meterRegistry).interceptor();
+    DuplexConnection micrometerConnection = interceptor.apply(delegate);
+
+    micrometerConnection
+        .send(source)
+        .as(StepVerifier::create)
+        .expectComplete()
+        .verify(Duration.ofSeconds(5));
+
+    Publisher<ByteBuf> sent = Flux.from(captor.getValue()).doOnNext(ReferenceCounted::release);
+
+    StepVerifier.create(sent)
+        .expectNextCount(elementsCount)
+        .expectComplete()
+        .verify(Duration.ofSeconds(5));
+    Assertions.assertThat(
+            meterRegistry.get(MicrometerDuplexConnectionInterceptor.COUNTER_FRAMES_SIZE).counters())
+        .hasSize(1);
+    Assertions.assertThat(
+            meterRegistry
+                .get(MicrometerDuplexConnectionInterceptor.COUNTER_FRAMES_COUNT)
+                .counters())
+        .hasSize(1);
+  }
+
+  private static Flux<ByteBuf> multiThreadedFramesSource(int elementsCount) {
+    if (elementsCount == 0) {
+      return Flux.empty();
+    }
+    Flux<ByteBuf> source =
+        Flux.create(
+            sink -> {
+              sink.next(TestFrames.createTestRequestResponseFrame());
+              sink.complete();
+            });
+
+    Flux<ByteBuf> result = source;
+    for (int i = 0; i < elementsCount - 1; i++) {
+      result = result.mergeWith(source.subscribeOn(Schedulers.newSingle("scheduler-" + i)));
+    }
+    return result;
   }
 }

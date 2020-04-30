@@ -1,11 +1,11 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2020 - present Maksym Ostroverkhov.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,76 +16,59 @@
 
 package com.jauntsdn.rsocket.micrometer;
 
-import static com.jauntsdn.rsocket.frame.FrameType.*;
-
 import com.jauntsdn.rsocket.DuplexConnection;
-import com.jauntsdn.rsocket.frame.FrameHeaderFlyweight;
-import com.jauntsdn.rsocket.frame.FrameType;
-import io.micrometer.core.instrument.*;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Tags;
 import io.netty.buffer.ByteBuf;
+import io.netty.util.concurrent.FastThreadLocal;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import org.reactivestreams.Publisher;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Scheduler;
 
-/**
- * An implementation of {@link DuplexConnection} that intercepts frames and gathers Micrometer
- * metrics about them.
- *
- * <p>The metric is called {@code rsocket.frame} and is tagged with {@code frame.type} ({@link
- * FrameType}), and any additional configured tags. {@code rsocket.duplex.connection.close} and
- * {@code rsocket.duplex.connection.dispose} metrics. Any additional configured tags are also
- * collected.
- *
- * @see <a href="https://micrometer.io">Micrometer</a>
- */
-final class MicrometerDuplexConnection implements DuplexConnection {
-
-  private final Counter close;
-
+final class MicrometerDuplexConnection extends AtomicBoolean implements DuplexConnection {
   private final DuplexConnection delegate;
+  private final ThreadLocalFrameMeters inboundFrames;
+  private final ThreadLocalFrameMeters outboundFrames;
+  private final ThreadLocalConnectionMeters connectionMeters;
 
-  private final Counter dispose;
+  MicrometerDuplexConnection(
+      DuplexConnection connection,
+      ThreadLocalConnectionMeters connectionMeters,
+      ThreadLocalFrameMeters inboundFrames,
+      ThreadLocalFrameMeters outboundFrames) {
+    this.delegate = connection;
+    this.connectionMeters = connectionMeters;
+    this.inboundFrames = inboundFrames;
+    this.outboundFrames = outboundFrames;
 
-  private final FrameCounters frameCounters;
-
-  /**
-   * Creates a new {@link DuplexConnection}.
-   *
-   * @param delegate the {@link DuplexConnection} to delegate to
-   * @param meterRegistry the {@link MeterRegistry} to use
-   * @param tags additional tags to attach to {@link Meter}s
-   * @throws NullPointerException if {@code connectionType}, {@code delegate}, or {@code
-   *     meterRegistry} is {@code null}
-   */
-  MicrometerDuplexConnection(DuplexConnection delegate, MeterRegistry meterRegistry, Tag... tags) {
-
-    this.delegate = Objects.requireNonNull(delegate, "delegate must not be null");
-    Objects.requireNonNull(meterRegistry, "meterRegistry must not be null");
-
-    this.close = meterRegistry.counter("rsocket.duplex.connection.close", Tags.of(tags));
-    this.dispose = meterRegistry.counter("rsocket.duplex.connection.dispose", Tags.of(tags));
-    this.frameCounters = new FrameCounters(meterRegistry, tags);
+    connectionMeters.meterOpenedConnections();
   }
 
   @Override
   public void dispose() {
     delegate.dispose();
-    dispose.increment();
   }
 
   @Override
   public Mono<Void> onClose() {
-    return delegate.onClose().doAfterTerminate(close::increment);
+    return delegate
+        .onClose()
+        .doAfterTerminate(
+            () -> {
+              if (compareAndSet(false, true)) {
+                connectionMeters.meterClosedConnections();
+              }
+            });
   }
 
   @Override
   public Flux<ByteBuf> receive() {
-    return delegate.receive().doOnNext(frameCounters);
+    return delegate.receive().doOnNext(inboundFrames);
   }
 
   @Override
@@ -95,148 +78,101 @@ final class MicrometerDuplexConnection implements DuplexConnection {
 
   @Override
   public Mono<Void> send(Publisher<ByteBuf> frames) {
-    Objects.requireNonNull(frames, "frames must not be null");
+    Objects.requireNonNull(frames, "frames");
 
-    return delegate.send(Flux.from(frames).doOnNext(frameCounters));
+    return delegate.send(Flux.from(frames).doOnNext(outboundFrames));
   }
 
-  private static final class FrameCounters implements Consumer<ByteBuf> {
+  static final class ThreadLocalConnectionMeters {
+    // thread local per instance, instance per tags set
+    private final FastThreadLocal<ConnectionCounters> threadLocalCounters =
+        new FastThreadLocal<ConnectionCounters>() {
+          @Override
+          protected ConnectionCounters initialValue() {
+            return new ConnectionCounters(registry, tags);
+          }
+        };
 
-    private final Logger logger = LoggerFactory.getLogger(this.getClass());
+    private final MeterRegistry registry;
+    private final Tags tags;
 
-    private final Counter cancel;
-
-    private final Counter complete;
-
-    private final Counter error;
-
-    private final Counter extension;
-
-    private final Counter keepalive;
-
-    private final Counter lease;
-
-    private final Counter metadataPush;
-
-    private final Counter next;
-
-    private final Counter nextComplete;
-
-    private final Counter payload;
-
-    private final Counter requestChannel;
-
-    private final Counter requestFireAndForget;
-
-    private final Counter requestN;
-
-    private final Counter requestResponse;
-
-    private final Counter requestStream;
-
-    private final Counter resume;
-
-    private final Counter resumeOk;
-
-    private final Counter setup;
-
-    private final Counter unknown;
-
-    private FrameCounters(MeterRegistry meterRegistry, Tag... tags) {
-      this.cancel = counter(meterRegistry, CANCEL, tags);
-      this.complete = counter(meterRegistry, COMPLETE, tags);
-      this.error = counter(meterRegistry, ERROR, tags);
-      this.extension = counter(meterRegistry, EXT, tags);
-      this.keepalive = counter(meterRegistry, KEEPALIVE, tags);
-      this.lease = counter(meterRegistry, LEASE, tags);
-      this.metadataPush = counter(meterRegistry, METADATA_PUSH, tags);
-      this.next = counter(meterRegistry, NEXT, tags);
-      this.nextComplete = counter(meterRegistry, NEXT_COMPLETE, tags);
-      this.payload = counter(meterRegistry, PAYLOAD, tags);
-      this.requestChannel = counter(meterRegistry, REQUEST_CHANNEL, tags);
-      this.requestFireAndForget = counter(meterRegistry, REQUEST_FNF, tags);
-      this.requestN = counter(meterRegistry, REQUEST_N, tags);
-      this.requestResponse = counter(meterRegistry, REQUEST_RESPONSE, tags);
-      this.requestStream = counter(meterRegistry, REQUEST_STREAM, tags);
-      this.resume = counter(meterRegistry, RESUME, tags);
-      this.resumeOk = counter(meterRegistry, RESUME_OK, tags);
-      this.setup = counter(meterRegistry, SETUP, tags);
-      this.unknown = counter(meterRegistry, "UNKNOWN", tags);
+    ThreadLocalConnectionMeters(MeterRegistry registry, Tags tags) {
+      this.registry = registry;
+      this.tags = tags;
     }
 
-    private static Counter counter(MeterRegistry meterRegistry, FrameType frameType, Tag... tags) {
-
-      return counter(meterRegistry, frameType.name(), tags);
+    public void meterOpenedConnections() {
+      threadLocalCounters.get().openedConnections().increment();
     }
 
-    private static Counter counter(MeterRegistry meterRegistry, String frameType, Tag... tags) {
+    public void meterClosedConnections() {
+      threadLocalCounters.get().closedConnections().increment();
+    }
+  }
 
-      return meterRegistry.counter("rsocket.frame", Tags.of(tags).and("frame.type", frameType));
+  static final class ThreadLocalFrameMeters implements Consumer<ByteBuf> {
+    // thread local per instance, instance per tags set
+    private final FastThreadLocal<FrameCounter> threadLocalCounters =
+        new FastThreadLocal<FrameCounter>() {
+          @Override
+          protected FrameCounter initialValue() {
+            return new FrameCounter(registry, tags);
+          }
+        };
+
+    private final MeterRegistry registry;
+    private final Tags tags;
+
+    ThreadLocalFrameMeters(MeterRegistry registry, Tags tags) {
+      this.registry = registry;
+      this.tags = tags;
     }
 
     @Override
     public void accept(ByteBuf frame) {
-      FrameType frameType = FrameHeaderFlyweight.frameType(frame);
+      FrameCounter counter = threadLocalCounters.get();
+      counter.increment(frame);
+    }
+  }
 
-      switch (frameType) {
-        case SETUP:
-          this.setup.increment();
-          break;
-        case LEASE:
-          this.lease.increment();
-          break;
-        case KEEPALIVE:
-          this.keepalive.increment();
-          break;
-        case REQUEST_RESPONSE:
-          this.requestResponse.increment();
-          break;
-        case REQUEST_FNF:
-          this.requestFireAndForget.increment();
-          break;
-        case REQUEST_STREAM:
-          this.requestStream.increment();
-          break;
-        case REQUEST_CHANNEL:
-          this.requestChannel.increment();
-          break;
-        case REQUEST_N:
-          this.requestN.increment();
-          break;
-        case CANCEL:
-          this.cancel.increment();
-          break;
-        case PAYLOAD:
-          this.payload.increment();
-          break;
-        case ERROR:
-          this.error.increment();
-          break;
-        case METADATA_PUSH:
-          this.metadataPush.increment();
-          break;
-        case RESUME:
-          this.resume.increment();
-          break;
-        case RESUME_OK:
-          this.resumeOk.increment();
-          break;
-        case NEXT:
-          this.next.increment();
-          break;
-        case COMPLETE:
-          this.complete.increment();
-          break;
-        case NEXT_COMPLETE:
-          this.nextComplete.increment();
-          break;
-        case EXT:
-          this.extension.increment();
-          break;
-        default:
-          this.logger.debug("Skipping count of unknown frame type: {}", frameType);
-          this.unknown.increment();
-      }
+  static final class ConnectionCounters {
+    private final Counter openedConnections;
+    private final Counter closedConnections;
+
+    public ConnectionCounters(MeterRegistry registry, Tags tags) {
+      this.openedConnections =
+          registry.counter(
+              MicrometerDuplexConnectionInterceptor.COUNTER_CONNECTIONS_OPENED, Tags.of(tags));
+      this.closedConnections =
+          registry.counter(
+              MicrometerDuplexConnectionInterceptor.COUNTER_CONNECTIONS_CLOSED, Tags.of(tags));
+    }
+
+    public Counter openedConnections() {
+      return openedConnections;
+    }
+
+    public Counter closedConnections() {
+      return closedConnections;
+    }
+  }
+
+  static final class FrameCounter {
+    private final Counter framesCount;
+    private final Counter framesSize;
+
+    public FrameCounter(MeterRegistry registry, Tags tags) {
+      this.framesCount =
+          registry.counter(
+              MicrometerDuplexConnectionInterceptor.COUNTER_FRAMES_COUNT, Tags.of(tags));
+      this.framesSize =
+          registry.counter(
+              MicrometerDuplexConnectionInterceptor.COUNTER_FRAMES_SIZE, Tags.of(tags));
+    }
+
+    public void increment(ByteBuf frame) {
+      framesCount.increment();
+      framesSize.increment(frame.readableBytes());
     }
   }
 }
