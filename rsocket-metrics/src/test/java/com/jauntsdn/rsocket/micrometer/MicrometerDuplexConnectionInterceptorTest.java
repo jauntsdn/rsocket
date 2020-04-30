@@ -16,7 +16,6 @@
 
 package com.jauntsdn.rsocket.micrometer;
 
-import static com.jauntsdn.rsocket.plugins.DuplexConnectionInterceptor.Type.CLIENT;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 import static org.mockito.Mockito.RETURNS_SMART_NULLS;
@@ -36,17 +35,11 @@ final class MicrometerDuplexConnectionInterceptorTest {
   @DisplayName("creates MicrometerDuplexConnection")
   @Test
   void apply() {
-    assertThat(new MicrometerDuplexConnectionInterceptor(meterRegistry).apply(CLIENT, delegate))
+    assertThat(
+            MicrometerDuplexConnectionInterceptors.create(meterRegistry)
+                .interceptor()
+                .apply(delegate))
         .isInstanceOf(MicrometerDuplexConnection.class);
-  }
-
-  @DisplayName("apply throws NullPointerException with null connectionType")
-  @Test
-  void applyNullConnectionType() {
-    assertThatNullPointerException()
-        .isThrownBy(
-            () -> new MicrometerDuplexConnectionInterceptor(meterRegistry).apply(null, delegate))
-        .withMessage("connectionType must not be null");
   }
 
   @DisplayName("apply throws NullPointerException with null delegate")
@@ -54,15 +47,18 @@ final class MicrometerDuplexConnectionInterceptorTest {
   void applyNullDelegate() {
     assertThatNullPointerException()
         .isThrownBy(
-            () -> new MicrometerDuplexConnectionInterceptor(meterRegistry).apply(CLIENT, null))
-        .withMessage("delegate must not be null");
+            () ->
+                MicrometerDuplexConnectionInterceptors.create(meterRegistry)
+                    .interceptor()
+                    .apply(null))
+        .withMessage("connection");
   }
 
   @DisplayName("constructor throws NullPointer exception with null meterRegistry")
   @Test
   void constructorNullMeterRegistry() {
     assertThatNullPointerException()
-        .isThrownBy(() -> new MicrometerDuplexConnectionInterceptor(null))
-        .withMessage("meterRegistry must not be null");
+        .isThrownBy(() -> MicrometerDuplexConnectionInterceptors.create(null))
+        .withMessage("meterRegistry");
   }
 }

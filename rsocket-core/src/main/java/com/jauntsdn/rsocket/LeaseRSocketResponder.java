@@ -1,5 +1,7 @@
 package com.jauntsdn.rsocket;
 
+import static com.jauntsdn.rsocket.StreamErrorMappers.*;
+
 import com.jauntsdn.rsocket.frame.FrameType;
 import com.jauntsdn.rsocket.frame.decoder.PayloadDecoder;
 import com.jauntsdn.rsocket.lease.*;
@@ -21,8 +23,9 @@ class LeaseRSocketResponder extends RSocketResponder {
       RSocket requestHandler,
       PayloadDecoder payloadDecoder,
       Consumer<Throwable> errorConsumer,
+      ErrorFrameMapper errorFrameMapper,
       ResponderLeaseHandler leaseHandler) {
-    super(allocator, connection, requestHandler, payloadDecoder, errorConsumer);
+    super(allocator, connection, requestHandler, payloadDecoder, errorConsumer, errorFrameMapper);
     this.leaseHandler = leaseHandler;
     this.leaseDisposable = leaseHandler.send(this::sendFrame);
   }

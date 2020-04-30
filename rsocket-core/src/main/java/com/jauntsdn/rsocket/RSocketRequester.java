@@ -16,6 +16,7 @@
 
 package com.jauntsdn.rsocket;
 
+import static com.jauntsdn.rsocket.StreamErrorMappers.*;
 import static com.jauntsdn.rsocket.keepalive.KeepAlive.ClientKeepAlive;
 
 import com.jauntsdn.rsocket.exceptions.ConnectionErrorException;
@@ -60,6 +61,7 @@ class RSocketRequester implements RSocket {
   private final DuplexConnection connection;
   private final PayloadDecoder payloadDecoder;
   private final Consumer<Throwable> errorConsumer;
+  private final ErrorFrameMapper errorFrameMapper;
   private final StreamIdSupplier streamIdSupplier;
   private final IntObjectMap<Subscription> senders;
   private final IntObjectMap<Processor<Payload, Payload>> receivers;
@@ -75,6 +77,7 @@ class RSocketRequester implements RSocket {
       DuplexConnection connection,
       PayloadDecoder payloadDecoder,
       Consumer<Throwable> errorConsumer,
+      ErrorFrameMapper errorFrameMapper,
       StreamIdSupplier streamIdSupplier,
       int keepAliveTickPeriod,
       int keepAliveAckTimeout,
@@ -83,6 +86,7 @@ class RSocketRequester implements RSocket {
     this.connection = connection;
     this.payloadDecoder = payloadDecoder;
     this.errorConsumer = errorConsumer;
+    this.errorFrameMapper = errorFrameMapper;
     this.streamIdSupplier = streamIdSupplier;
     this.senders = new SynchronizedIntObjectHashMap<>();
     this.receivers = new SynchronizedIntObjectHashMap<>();
@@ -450,7 +454,8 @@ class RSocketRequester implements RSocket {
                               int streamId = stream.getId();
                               if (streamId > 0) {
                                 sendProcessor.onNext(
-                                    ErrorFrameFlyweight.encode(allocator, streamId, t));
+                                    errorFrameMapper.streamErrorToFrame(
+                                        streamId, StreamType.REQUEST, t));
                               }
                               // todo signal error wrapping request error
                               receiver.dispose();
@@ -522,9 +527,9 @@ class RSocketRequester implements RSocket {
       int streamId = FrameHeaderFlyweight.streamId(frame);
       FrameType type = FrameHeaderFlyweight.strictFrameType(frame);
       if (streamId == 0) {
-        handleStreamZero(type, frame);
+        handleZeroFrame(type, frame);
       } else {
-        handleFrame(streamId, type, frame);
+        handleStreamFrame(streamId, type, frame);
       }
       frame.release();
     } catch (Throwable t) {
@@ -533,7 +538,7 @@ class RSocketRequester implements RSocket {
     }
   }
 
-  private void handleStreamZero(FrameType type, ByteBuf frame) {
+  private void handleZeroFrame(FrameType type, ByteBuf frame) {
     switch (type) {
       case ERROR:
         tryTerminate(frame);
@@ -552,14 +557,12 @@ class RSocketRequester implements RSocket {
     }
   }
 
-  private void handleFrame(int streamId, FrameType type, ByteBuf frame) {
+  private void handleStreamFrame(int streamId, FrameType type, ByteBuf frame) {
     Subscriber<Payload> receiver = receivers.get(streamId);
-    if (receiver == null) {
-      handleMissingResponseProcessor(streamId, type, frame);
-    } else {
+    if (receiver != null) {
       switch (type) {
         case ERROR:
-          receiver.onError(Exceptions.from(frame));
+          receiver.onError(errorFrameMapper.streamFrameToError(frame, StreamType.RESPONSE));
           receivers.remove(streamId);
           break;
         case NEXT_COMPLETE:
@@ -595,30 +598,6 @@ class RSocketRequester implements RSocket {
               "Client received supported frame on stream " + streamId + ": " + frame.toString());
       }
     }
-  }
-
-  private void handleMissingResponseProcessor(int streamId, FrameType type, ByteBuf frame) {
-    if (!streamIdSupplier.isBeforeOrCurrent(streamId)) {
-      if (type == FrameType.ERROR) {
-        // message for stream that has never existed, we have a problem with
-        // the overall connection and must tear down
-        String errorMessage = ErrorFrameFlyweight.dataUtf8(frame);
-
-        throw new IllegalStateException(
-            "Client received error for non-existent stream: "
-                + streamId
-                + " Message: "
-                + errorMessage);
-      } else {
-        throw new IllegalStateException(
-            "Client received message for non-existent stream: "
-                + streamId
-                + ", frame type: "
-                + type);
-      }
-    }
-    // receiving a frame after a given stream has been cancelled/completed,
-    // so ignore (cancellation is async so there is a race condition)
   }
 
   /*error is (int (KeepAlive timeout) | ClosedChannelException (dispose) | Error frame (0 error)) */

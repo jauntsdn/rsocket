@@ -14,27 +14,10 @@
  * limitations under the License.
  */
 
-package com.jauntsdn.rsocket.util;
+package com.jauntsdn.rsocket.interceptors;
 
-import java.util.concurrent.TimeUnit;
+import com.jauntsdn.rsocket.RSocket;
+import java.util.function.Function;
 
-/** Abstraction to get current time and durations. */
-public final class Clock {
-
-  private Clock() {
-    // No Instances.
-  }
-
-  public static long now() {
-    return System.nanoTime() / 1000;
-  }
-
-  public static long elapsedSince(long timestamp) {
-    long t = now();
-    return Math.max(0L, t - timestamp);
-  }
-
-  public static TimeUnit unit() {
-    return TimeUnit.MICROSECONDS;
-  }
-}
+/** Contract to decorate RSocket requester and responder */
+public @FunctionalInterface interface RSocketInterceptor extends Function<RSocket, RSocket> {}

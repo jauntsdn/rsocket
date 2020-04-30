@@ -16,26 +16,22 @@
 
 package com.jauntsdn.rsocket;
 
+import static com.jauntsdn.rsocket.StreamErrorMappers.*;
 import static com.jauntsdn.rsocket.internal.ClientSetup.DefaultClientSetup;
 import static com.jauntsdn.rsocket.internal.ClientSetup.ResumableClientSetup;
 
 import com.jauntsdn.rsocket.exceptions.InvalidSetupException;
 import com.jauntsdn.rsocket.exceptions.RejectedSetupException;
 import com.jauntsdn.rsocket.fragmentation.FragmentationDuplexConnection;
-import com.jauntsdn.rsocket.frame.FrameHeaderFlyweight;
-import com.jauntsdn.rsocket.frame.FrameLengthFlyweight;
-import com.jauntsdn.rsocket.frame.ResumeFrameFlyweight;
-import com.jauntsdn.rsocket.frame.SetupFrameFlyweight;
+import com.jauntsdn.rsocket.frame.*;
 import com.jauntsdn.rsocket.frame.decoder.PayloadDecoder;
 import com.jauntsdn.rsocket.internal.ClientServerInputMultiplexer;
 import com.jauntsdn.rsocket.internal.ClientSetup;
 import com.jauntsdn.rsocket.internal.ServerSetup;
 import com.jauntsdn.rsocket.keepalive.KeepAliveHandler;
-import com.jauntsdn.rsocket.plugins.*;
 import com.jauntsdn.rsocket.resume.*;
 import com.jauntsdn.rsocket.transport.ClientTransport;
 import com.jauntsdn.rsocket.transport.ServerTransport;
-import com.jauntsdn.rsocket.util.ConnectionUtils;
 import com.jauntsdn.rsocket.util.EmptyPayload;
 import com.jauntsdn.rsocket.util.MultiSubscriberRSocket;
 import com.jauntsdn.rsocket.util.Preconditions;
@@ -47,6 +43,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Scheduler;
 
 /** Factory for creating RSocket clients and servers. */
 public class RSocketFactory {
@@ -93,10 +90,11 @@ public class RSocketFactory {
     private static final String CLIENT_TAG = "client";
     private static final int KEEPALIVE_MIN_INTERVAL_MILLIS = 100;
 
-    private SocketAcceptor acceptor = (setup, sendingSocket) -> Mono.just(new AbstractRSocket() {});
+    private ClientSocketAcceptor acceptor = (setup, sendingSocket) -> new AbstractRSocket() {};
 
     private Consumer<Throwable> errorConsumer = Throwable::printStackTrace;
-    private PluginRegistry plugins = new PluginRegistry(Plugins.defaultPlugins());
+    private StreamErrorMappers errorMappers = StreamErrorMappers.create();
+    private Interceptors.Configurer interceptorsConfigurer = setupPayload -> Interceptors.noop();
 
     private Payload setupPayload = EmptyPayload.INSTANCE;
     private PayloadDecoder payloadDecoder = PayloadDecoder.ZERO_COPY;
@@ -132,23 +130,17 @@ public class RSocketFactory {
       return this;
     }
 
-    public ClientRSocketFactory addConnectionPlugin(DuplexConnectionInterceptor interceptor) {
-      plugins.addConnectionPlugin(interceptor);
-      return this;
-    }
-
-    public ClientRSocketFactory addRequesterPlugin(RSocketInterceptor interceptor) {
-      plugins.addRequesterPlugin(interceptor);
-      return this;
-    }
-
-    public ClientRSocketFactory addResponderPlugin(RSocketInterceptor interceptor) {
-      plugins.addResponderPlugin(interceptor);
-      return this;
-    }
-
-    public ClientRSocketFactory addSocketAcceptorPlugin(SocketAcceptorInterceptor interceptor) {
-      plugins.addSocketAcceptorPlugin(interceptor);
+    /**
+     * Adds interceptors that are called in order: connection, RSocket requester, socket acceptor,
+     * RSocket handler. Global interceptors are called first
+     *
+     * @param interceptorsConfigurer adds interceptors of connection, RSocket requester, client
+     *     socket acceptor, RSocket handler
+     * @return this {@link ClientRSocketFactory} instance
+     */
+    public ClientRSocketFactory interceptors(Interceptors.Configurer interceptorsConfigurer) {
+      Objects.requireNonNull(interceptorsConfigurer);
+      this.interceptorsConfigurer = interceptorsConfigurer;
       return this;
     }
 
@@ -268,7 +260,7 @@ public class RSocketFactory {
     }
 
     public ClientRSocketFactory frameSizeLimit(int frameSizeLimit) {
-      this.frameSizeLimit = Preconditions.assertFrameSizeLimit(frameSizeLimit);
+      this.frameSizeLimit = Preconditions.requireFrameSizeValid(frameSizeLimit);
       return this;
     }
 
@@ -277,15 +269,7 @@ public class RSocketFactory {
       return new StartClient(transportClient);
     }
 
-    public ClientTransportAcceptor acceptor(Function<RSocket, RSocket> acceptor) {
-      return acceptor(() -> acceptor);
-    }
-
-    public ClientTransportAcceptor acceptor(Supplier<Function<RSocket, RSocket>> acceptor) {
-      return acceptor((setup, sendingSocket) -> Mono.just(acceptor.get().apply(sendingSocket)));
-    }
-
-    public ClientTransportAcceptor acceptor(SocketAcceptor acceptor) {
+    public ClientTransportAcceptor acceptor(ClientSocketAcceptor acceptor) {
       this.acceptor = acceptor;
       return StartClient::new;
     }
@@ -297,6 +281,15 @@ public class RSocketFactory {
 
     public ClientRSocketFactory errorConsumer(Consumer<Throwable> errorConsumer) {
       this.errorConsumer = errorConsumer;
+      return this;
+    }
+
+    /**
+     * @param errorMappers configures custom error mappers of incoming and outgoing streams.
+     * @return this {@link ClientRSocketFactory} instance
+     */
+    public ClientRSocketFactory streamErrorMapper(StreamErrorMappers errorMappers) {
+      this.errorMappers = errorMappers;
       return this;
     }
 
@@ -349,20 +342,28 @@ public class RSocketFactory {
                   ConnectionSetupPayload connectionSetupPayload =
                       ConnectionSetupPayload.create(setupFrame);
 
+                  Scheduler scheduler = connection.scheduler();
                   KeepAliveHandler keepAliveHandler = clientSetup.keepAliveHandler();
-                  DuplexConnection wrappedConnection = clientSetup.connection();
+                  DuplexConnection clientConnection = clientSetup.connection();
+
+                  Interceptors interceptors = interceptorsConfigurer.configure(scheduler);
+                  DuplexConnection wrappedConnection =
+                      interceptors.interceptConnection(clientConnection);
 
                   ClientServerInputMultiplexer multiplexer =
-                      new ClientServerInputMultiplexer(wrappedConnection, plugins, true);
+                      new ClientServerInputMultiplexer(wrappedConnection, true);
 
                   RSocketsFactory rSocketsFactory =
                       RSocketsFactory.createClient(
                           connectionSetupPayload.willClientHonorLease(),
-                          connection.scheduler(),
+                          scheduler,
                           leaseConfigurer);
 
                   final int keepAliveTimeout = this.keepAliveTimeout;
                   final int keepAliveTickPeriod = this.keepAliveTickPeriod;
+
+                  ErrorFrameMapper errorFrameMapper =
+                      errorMappers.createErrorFrameMapper(allocator);
 
                   RSocket rSocketRequester =
                       rSocketsFactory.createRequester(
@@ -370,6 +371,7 @@ public class RSocketFactory {
                           multiplexer.asClientConnection(),
                           payloadDecoder,
                           errorConsumer,
+                          errorFrameMapper,
                           StreamIdSupplier.clientSupplier(),
                           keepAliveTickPeriod,
                           keepAliveTimeout,
@@ -379,27 +381,26 @@ public class RSocketFactory {
                     rSocketRequester = new MultiSubscriberRSocket(rSocketRequester);
                   }
 
-                  RSocket wrappedRSocketRequester = plugins.applyRequester(rSocketRequester);
+                  RSocket wrappedRSocketRequester =
+                      interceptors.interceptRequester(rSocketRequester);
 
-                  return plugins
-                      .applySocketAcceptorInterceptor(acceptor)
-                      .accept(connectionSetupPayload, wrappedRSocketRequester)
-                      .flatMap(
-                          rSocketHandler -> {
-                            RSocket wrappedRSocketHandler = plugins.applyResponder(rSocketHandler);
+                  RSocket rSocketHandler =
+                      interceptors
+                          .interceptClientAcceptor(acceptor)
+                          .accept(connectionSetupPayload, wrappedRSocketRequester);
 
-                            RSocket rSocketResponder =
-                                rSocketsFactory.createResponder(
-                                    allocator,
-                                    multiplexer.asServerConnection(),
-                                    wrappedRSocketHandler,
-                                    payloadDecoder,
-                                    errorConsumer);
+                  RSocket wrappedRSocketHandler = interceptors.interceptHandler(rSocketHandler);
 
-                            return wrappedConnection
-                                .sendOne(setupFrame)
-                                .thenReturn(wrappedRSocketRequester);
-                          });
+                  RSocket rSocketResponder =
+                      rSocketsFactory.createResponder(
+                          allocator,
+                          multiplexer.asServerConnection(),
+                          wrappedRSocketHandler,
+                          payloadDecoder,
+                          errorConsumer,
+                          errorFrameMapper);
+
+                  return wrappedConnection.sendOne(setupFrame).thenReturn(wrappedRSocketRequester);
                 });
       }
 
@@ -457,10 +458,11 @@ public class RSocketFactory {
   public static class ServerRSocketFactory {
     private static final String SERVER_TAG = "server";
 
-    private SocketAcceptor acceptor;
+    private ServerSocketAcceptor acceptor;
     private PayloadDecoder payloadDecoder = PayloadDecoder.ZERO_COPY;
     private Consumer<Throwable> errorConsumer = Throwable::printStackTrace;
-    private PluginRegistry plugins = new PluginRegistry(Plugins.defaultPlugins());
+    private StreamErrorMappers errorMappers = StreamErrorMappers.create();
+    private Interceptors.Configurer interceptorsConfigurer = setupPayload -> Interceptors.noop();
 
     private boolean resumeSupported;
     private Duration resumeSessionDuration = Duration.ofSeconds(120);
@@ -485,27 +487,21 @@ public class RSocketFactory {
       return this;
     }
 
-    public ServerRSocketFactory addConnectionPlugin(DuplexConnectionInterceptor interceptor) {
-      plugins.addConnectionPlugin(interceptor);
+    /**
+     * Adds interceptors that are called in order: connection, RSocket requester, socket acceptor,
+     * RSocket handler. Global interceptors are called first
+     *
+     * @param interceptorsConfigurer adds interceptors of connection, RSocket requester, server
+     *     socket acceptor, RSocket handler
+     * @return this {@link ServerRSocketFactory} instance
+     */
+    public ServerRSocketFactory interceptors(Interceptors.Configurer interceptorsConfigurer) {
+      Objects.requireNonNull(interceptorsConfigurer);
+      this.interceptorsConfigurer = interceptorsConfigurer;
       return this;
     }
 
-    public ServerRSocketFactory addRequesterPlugin(RSocketInterceptor interceptor) {
-      plugins.addRequesterPlugin(interceptor);
-      return this;
-    }
-
-    public ServerRSocketFactory addResponderPlugin(RSocketInterceptor interceptor) {
-      plugins.addResponderPlugin(interceptor);
-      return this;
-    }
-
-    public ServerRSocketFactory addSocketAcceptorPlugin(SocketAcceptorInterceptor interceptor) {
-      plugins.addSocketAcceptorPlugin(interceptor);
-      return this;
-    }
-
-    public ServerTransportAcceptor acceptor(SocketAcceptor acceptor) {
+    public ServerTransportAcceptor acceptor(ServerSocketAcceptor acceptor) {
       this.acceptor = acceptor;
       return ServerStart::new;
     }
@@ -522,6 +518,15 @@ public class RSocketFactory {
 
     public ServerRSocketFactory errorConsumer(Consumer<Throwable> errorConsumer) {
       this.errorConsumer = errorConsumer;
+      return this;
+    }
+
+    /**
+     * @param errorMappers configures custom error mappers of incoming and outgoing streams.
+     * @return this {@link ServerRSocketFactory} instance
+     */
+    public ServerRSocketFactory streamErrorMapper(StreamErrorMappers errorMappers) {
+      this.errorMappers = errorMappers;
       return this;
     }
 
@@ -596,7 +601,7 @@ public class RSocketFactory {
     }
 
     public ServerRSocketFactory frameSizeLimit(int frameSizeLimit) {
-      this.frameSizeLimit = Preconditions.assertFrameSizeLimit(frameSizeLimit);
+      this.frameSizeLimit = Preconditions.requireFrameSizeValid(frameSizeLimit);
       return this;
     }
 
@@ -625,25 +630,32 @@ public class RSocketFactory {
                                 new FragmentationDuplexConnection(
                                     duplexConnection, allocator, frameSizeLimit);
                           }
+                          Interceptors interceptors =
+                              interceptorsConfigurer.configure(duplexConnection.scheduler());
+
+                          DuplexConnection wrappedConnection =
+                              interceptors.interceptConnection(duplexConnection);
 
                           ClientServerInputMultiplexer multiplexer =
-                              new ClientServerInputMultiplexer(duplexConnection, plugins, false);
+                              new ClientServerInputMultiplexer(wrappedConnection, false);
 
                           return multiplexer
                               .asSetupConnection()
                               .receive()
                               .next()
-                              .flatMap(startFrame -> accept(startFrame, multiplexer));
+                              .flatMap(startFrame -> accept(startFrame, multiplexer, interceptors));
                         },
                         frameSizeLimit)
                     .doOnNext(c -> c.onClose().doFinally(v -> serverSetup.dispose()).subscribe());
               }
 
               private Mono<Void> accept(
-                  ByteBuf startFrame, ClientServerInputMultiplexer multiplexer) {
+                  ByteBuf startFrame,
+                  ClientServerInputMultiplexer multiplexer,
+                  Interceptors interceptors) {
                 switch (FrameHeaderFlyweight.frameType(startFrame)) {
                   case SETUP:
-                    return acceptSetup(serverSetup, startFrame, multiplexer);
+                    return acceptSetup(serverSetup, startFrame, multiplexer, interceptors);
                   case RESUME:
                     return acceptResume(serverSetup, startFrame, multiplexer);
                   default:
@@ -654,7 +666,8 @@ public class RSocketFactory {
               private Mono<Void> acceptSetup(
                   ServerSetup serverSetup,
                   ByteBuf setupFrame,
-                  ClientServerInputMultiplexer multiplexer) {
+                  ClientServerInputMultiplexer multiplexer,
+                  Interceptors interceptors) {
 
                 if (!SetupFrameFlyweight.isSupportedVersion(setupFrame)) {
                   return sendError(
@@ -695,12 +708,16 @@ public class RSocketFactory {
                               serverConnection.scheduler(),
                               leaseConfigurer);
 
+                      ErrorFrameMapper errorFrameMapper =
+                          errorMappers.createErrorFrameMapper(allocator);
+
                       RSocket rSocketRequester =
                           rSocketsFactory.createRequester(
                               allocator,
                               serverConnection,
                               payloadDecoder,
                               errorConsumer,
+                              errorFrameMapper,
                               StreamIdSupplier.serverSupplier(),
                               0,
                               setupPayload.keepAliveMaxLifetime(),
@@ -709,10 +726,11 @@ public class RSocketFactory {
                       if (multiSubscriberRequester) {
                         rSocketRequester = new MultiSubscriberRSocket(rSocketRequester);
                       }
-                      RSocket wrappedRSocketRequester = plugins.applyRequester(rSocketRequester);
+                      RSocket wrappedRSocketRequester =
+                          interceptors.interceptRequester(rSocketRequester);
 
-                      return plugins
-                          .applySocketAcceptorInterceptor(acceptor)
+                      return interceptors
+                          .interceptServerAcceptor(acceptor)
                           .accept(setupPayload, wrappedRSocketRequester)
                           .onErrorResume(
                               err ->
@@ -721,7 +739,7 @@ public class RSocketFactory {
                           .doOnNext(
                               rSocketHandler -> {
                                 RSocket wrappedRSocketHandler =
-                                    plugins.applyResponder(rSocketHandler);
+                                    interceptors.interceptHandler(rSocketHandler);
 
                                 RSocket rSocketResponder =
                                     rSocketsFactory.createResponder(
@@ -729,7 +747,8 @@ public class RSocketFactory {
                                         wrappedMultiplexer.asClientConnection(),
                                         wrappedRSocketHandler,
                                         payloadDecoder,
-                                        errorConsumer);
+                                        errorConsumer,
+                                        errorFrameMapper);
                               })
                           .doFinally(signalType -> setupPayload.release())
                           .then();
@@ -770,7 +789,10 @@ public class RSocketFactory {
       }
 
       private Mono<Void> sendError(ClientServerInputMultiplexer multiplexer, Exception exception) {
-        return ConnectionUtils.sendError(allocator, multiplexer, exception);
+        return multiplexer
+            .asSetupConnection()
+            .sendOne(ErrorFrameFlyweight.encode(allocator, 0, exception))
+            .onErrorResume(err -> Mono.empty());
       }
 
       private Exception rejectedSetupError(Throwable err) {

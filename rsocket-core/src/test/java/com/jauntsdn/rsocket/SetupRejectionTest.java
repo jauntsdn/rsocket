@@ -56,6 +56,7 @@ public class SetupRejectionTest {
             conn,
             PayloadDecoder.DEFAULT,
             errors::add,
+            StreamErrorMappers.create().createErrorFrameMapper(ByteBufAllocator.DEFAULT),
             StreamIdSupplier.clientSupplier(),
             100_000,
             100_000,
@@ -90,6 +91,7 @@ public class SetupRejectionTest {
             conn,
             PayloadDecoder.DEFAULT,
             err -> {},
+            StreamErrorMappers.create().createErrorFrameMapper(ByteBufAllocator.DEFAULT),
             StreamIdSupplier.clientSupplier(),
             100_000,
             100_000,
@@ -108,7 +110,7 @@ public class SetupRejectionTest {
         .verify(Duration.ofSeconds(5));
   }
 
-  private static class RejectingAcceptor implements SocketAcceptor {
+  private static class RejectingAcceptor implements ServerSocketAcceptor {
     private final String errorMessage;
     private final UnicastProcessor<RSocket> senderRSockets = UnicastProcessor.create();
 

@@ -20,13 +20,13 @@ import com.jauntsdn.rsocket.AbstractRSocket;
 import com.jauntsdn.rsocket.ConnectionSetupPayload;
 import com.jauntsdn.rsocket.Payload;
 import com.jauntsdn.rsocket.RSocket;
-import com.jauntsdn.rsocket.SocketAcceptor;
+import com.jauntsdn.rsocket.ServerSocketAcceptor;
 import com.jauntsdn.rsocket.util.ByteBufPayload;
 import java.util.concurrent.ThreadLocalRandom;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-public class PingHandler implements SocketAcceptor {
+public class PingHandler implements ServerSocketAcceptor {
 
   private final Payload pong;
 

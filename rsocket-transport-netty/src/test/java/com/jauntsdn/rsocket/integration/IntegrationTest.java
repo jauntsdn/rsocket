@@ -23,13 +23,11 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
-import com.jauntsdn.rsocket.AbstractRSocket;
-import com.jauntsdn.rsocket.Payload;
-import com.jauntsdn.rsocket.RSocket;
-import com.jauntsdn.rsocket.RSocketFactory;
-import com.jauntsdn.rsocket.plugins.DuplexConnectionInterceptor;
-import com.jauntsdn.rsocket.plugins.RSocketInterceptor;
-import com.jauntsdn.rsocket.plugins.SocketAcceptorInterceptor;
+import com.jauntsdn.rsocket.*;
+import com.jauntsdn.rsocket.interceptors.ClientAcceptorInterceptor;
+import com.jauntsdn.rsocket.interceptors.DuplexConnectionInterceptor;
+import com.jauntsdn.rsocket.interceptors.RSocketInterceptor;
+import com.jauntsdn.rsocket.interceptors.ServerAcceptorInterceptor;
 import com.jauntsdn.rsocket.test.TestSubscriber;
 import com.jauntsdn.rsocket.transport.netty.client.TcpClientTransport;
 import com.jauntsdn.rsocket.transport.netty.server.CloseableChannel;
@@ -49,11 +47,11 @@ import reactor.core.publisher.Mono;
 
 public class IntegrationTest {
 
-  private static final RSocketInterceptor requesterPlugin;
-  private static final RSocketInterceptor responderPlugin;
-  private static final SocketAcceptorInterceptor clientAcceptorPlugin;
-  private static final SocketAcceptorInterceptor serverAcceptorPlugin;
-  private static final DuplexConnectionInterceptor connectionPlugin;
+  private static final RSocketInterceptor requesterInterceptor;
+  private static final RSocketInterceptor handlerInterceptor;
+  private static final ClientAcceptorInterceptor clientAcceptorPlugin;
+  private static final ServerAcceptorInterceptor serverAcceptorInterceptor;
+  private static final DuplexConnectionInterceptor connectionInterceptor;
   public static volatile boolean calledRequester = false;
   public static volatile boolean calledResponder = false;
   public static volatile boolean calledClientAcceptor = false;
@@ -61,7 +59,7 @@ public class IntegrationTest {
   public static volatile boolean calledFrame = false;
 
   static {
-    requesterPlugin =
+    requesterInterceptor =
         reactiveSocket ->
             new RSocketProxy(reactiveSocket) {
               @Override
@@ -71,7 +69,7 @@ public class IntegrationTest {
               }
             };
 
-    responderPlugin =
+    handlerInterceptor =
         reactiveSocket ->
             new RSocketProxy(reactiveSocket) {
               @Override
@@ -88,15 +86,15 @@ public class IntegrationTest {
               return acceptor.accept(setup, sendingSocket);
             };
 
-    serverAcceptorPlugin =
+    serverAcceptorInterceptor =
         acceptor ->
             (setup, sendingSocket) -> {
               calledServerAcceptor = true;
               return acceptor.accept(setup, sendingSocket);
             };
 
-    connectionPlugin =
-        (type, connection) -> {
+    connectionInterceptor =
+        connection -> {
           calledFrame = true;
           return connection;
         };
@@ -118,9 +116,12 @@ public class IntegrationTest {
 
     server =
         RSocketFactory.receive()
-            .addResponderPlugin(responderPlugin)
-            .addSocketAcceptorPlugin(serverAcceptorPlugin)
-            .addConnectionPlugin(connectionPlugin)
+            .interceptors(
+                scheduler ->
+                    Interceptors.create()
+                        .connection(connectionInterceptor)
+                        .handler(handlerInterceptor)
+                        .serverAcceptor(serverAcceptorInterceptor))
             .errorConsumer(
                 t -> {
                   errorCount.incrementAndGet();
@@ -158,9 +159,12 @@ public class IntegrationTest {
 
     client =
         RSocketFactory.connect()
-            .addRequesterPlugin(requesterPlugin)
-            .addSocketAcceptorPlugin(clientAcceptorPlugin)
-            .addConnectionPlugin(connectionPlugin)
+            .interceptors(
+                scheduler ->
+                    Interceptors.create()
+                        .connection(connectionInterceptor)
+                        .requester(requesterInterceptor)
+                        .clientAcceptor(clientAcceptorPlugin))
             .transport(TcpClientTransport.create(server.address()))
             .start()
             .block();

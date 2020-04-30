@@ -16,7 +16,7 @@
 
 package com.jauntsdn.rsocket.exceptions;
 
-import com.jauntsdn.rsocket.frame.ErrorType;
+import com.jauntsdn.rsocket.frame.ErrorCodes;
 
 /**
  * The Setup frame is invalid for the server (it could be that the client is too recent for the old
@@ -52,6 +52,6 @@ public final class InvalidSetupException extends SetupException {
 
   @Override
   public int errorCode() {
-    return ErrorType.INVALID_SETUP;
+    return ErrorCodes.INVALID_SETUP;
   }
 }

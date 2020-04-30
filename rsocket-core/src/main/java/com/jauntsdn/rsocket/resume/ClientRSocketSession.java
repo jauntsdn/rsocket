@@ -84,7 +84,7 @@ public class ClientRSocketSession implements RSocketSession<Mono<DuplexConnectio
                                           .doOnNext(v -> logger.debug("Retrying with: {}", v))))
                   .timeout(resumeSessionDuration);
             })
-        .map(ClientServerInputMultiplexer::new)
+        .map(source -> new ClientServerInputMultiplexer(source, true))
         .subscribe(
             multiplexer -> {
               /*reconnect resumable connection*/

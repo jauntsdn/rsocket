@@ -1,11 +1,11 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2020 - present Maksym Ostroverkhov.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,46 +16,46 @@
 
 package com.jauntsdn.rsocket.micrometer;
 
-import com.jauntsdn.rsocket.RSocket;
-import com.jauntsdn.rsocket.plugins.RSocketInterceptor;
-import io.micrometer.core.instrument.Meter;
-import io.micrometer.core.instrument.MeterRegistry;
-import io.micrometer.core.instrument.Tag;
-import java.util.Objects;
-import reactor.core.publisher.SignalType;
+import com.jauntsdn.rsocket.interceptors.RSocketInterceptor;
 
 /**
- * An implementation of {@link RSocketInterceptor} that intercepts interactions and gathers
- * Micrometer metrics about them.
- *
- * <p>The metrics are called {@code rsocket.[ metadata.push | request.channel | request.fnf |
- * request.response | request.stream ]} and is tagged with {@code signal.type} ({@link SignalType})
- * and any additional configured tags.
+ * Marker interface for Micrometer RSocket interceptors.
  *
  * @see <a href="https://micrometer.io">Micrometer</a>
  */
-public final class MicrometerRSocketInterceptor implements RSocketInterceptor {
-
-  private final MeterRegistry meterRegistry;
-
-  private final Tag[] tags;
+@FunctionalInterface
+public interface MicrometerRSocketInterceptor extends RSocketInterceptor {
+  /**
+   * RSocket started requests count. Tagged with {@link #TAG_INTERACTION_TYPE and
+   * {@link #TAG_RSOCKET_ROLE}
+   */
+  String COUNTER_RSOCKET_REQUEST_STARTED = "rsocket.request.started";
 
   /**
-   * Creates a new {@link RSocketInterceptor}.
-   *
-   * @param meterRegistry the {@link MeterRegistry} to use to create {@link Meter}s.
-   * @param tags the additional tags to attach to each {@link Meter}
-   * @throws NullPointerException if {@code meterRegistry} is {@code null}
+   * RSocket completed requests count. Tagged with {@link #TAG_INTERACTION_TYPE}, {@link
+   * #TAG_SIGNAL_TYPE} and {@link #TAG_RSOCKET_ROLE}
    */
-  public MicrometerRSocketInterceptor(MeterRegistry meterRegistry, Tag... tags) {
-    this.meterRegistry = Objects.requireNonNull(meterRegistry, "meterRegistry must not be null");
-    this.tags = tags;
-  }
+  String COUNTER_RSOCKET_REQUEST_COMPLETED = "rsocket.request.completed";
 
-  @Override
-  public MicrometerRSocket apply(RSocket delegate) {
-    Objects.requireNonNull(delegate, "delegate must not be null");
+  /** RSocket interaction lifecycle signals */
+  String TAG_INTERACTION_TYPE = "interaction";
 
-    return new MicrometerRSocket(delegate, meterRegistry, tags);
-  }
+  String TAG_INTERACTION_TYPE_METADATA_PUSH = "metadatapush";
+  String TAG_INTERACTION_TYPE_FNF = "fnf";
+  String TAG_INTERACTION_TYPE_RESPONSE = "response";
+  String TAG_INTERACTION_TYPE_STREAM = "stream";
+  String TAG_INTERACTION_TYPE_CHANNEL = "channel";
+
+  /** RSocket interaction completion signal */
+  String TAG_SIGNAL_TYPE = "signal";
+
+  String TAG_SIGNAL_TYPE_COMPLETE = "complete";
+  String TAG_SIGNAL_TYPE_ERROR = "error";
+  String TAG_SIGNAL_TYPE_CANCEL = "cancel";
+
+  /** RSocket role for one side of connection */
+  String TAG_RSOCKET_ROLE = "role";
+
+  String TAG_RSOCKET_ROLE_REQUESTER = "requester";
+  String TAG_RSOCKET_ROLE_RESPONDER = "responder";
 }

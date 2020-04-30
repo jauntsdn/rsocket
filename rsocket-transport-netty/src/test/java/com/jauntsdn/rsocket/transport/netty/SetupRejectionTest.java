@@ -3,7 +3,7 @@ package com.jauntsdn.rsocket.transport.netty;
 import com.jauntsdn.rsocket.ConnectionSetupPayload;
 import com.jauntsdn.rsocket.RSocket;
 import com.jauntsdn.rsocket.RSocketFactory;
-import com.jauntsdn.rsocket.SocketAcceptor;
+import com.jauntsdn.rsocket.ServerSocketAcceptor;
 import com.jauntsdn.rsocket.exceptions.RejectedSetupException;
 import com.jauntsdn.rsocket.transport.ClientTransport;
 import com.jauntsdn.rsocket.transport.ServerTransport;
@@ -100,7 +100,7 @@ public class SetupRejectionTest {
     }
   }
 
-  private static class RejectingAcceptor implements SocketAcceptor {
+  private static class RejectingAcceptor implements ServerSocketAcceptor {
     private final String msg;
     private final EmitterProcessor<RSocket> requesters = EmitterProcessor.create();
 

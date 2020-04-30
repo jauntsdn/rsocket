@@ -16,7 +16,7 @@
 
 package com.jauntsdn.rsocket.metadata;
 
-import com.jauntsdn.rsocket.util.NumberUtils;
+import com.jauntsdn.rsocket.util.Preconditions;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.ByteBufUtil;
@@ -356,7 +356,7 @@ public class CompositeMetadataFlyweight {
 
     // go back to post-mime type and write the metadata content length
     metadataHeader.resetWriterIndex();
-    NumberUtils.encodeUnsignedMedium(metadataHeader, metadataLength);
+    encodeUnsignedMedium(metadataHeader, metadataLength);
 
     return metadataHeader;
   }
@@ -378,8 +378,24 @@ public class CompositeMetadataFlyweight {
       ByteBufAllocator allocator, byte mimeType, int metadataLength) {
     ByteBuf buffer = allocator.buffer(4, 4).writeByte(mimeType | STREAM_METADATA_KNOWN_MASK);
 
-    NumberUtils.encodeUnsignedMedium(buffer, metadataLength);
+    encodeUnsignedMedium(buffer, metadataLength);
 
     return buffer;
+  }
+
+  /**
+   * Encode an unsigned medium integer on 3 bytes / 24 bits. This can be decoded directly by the
+   * {@link ByteBuf#readUnsignedMedium()} method.
+   *
+   * @param byteBuf the {@link ByteBuf} into which to write the bits
+   * @param i the medium integer to encode
+   */
+  public static void encodeUnsignedMedium(ByteBuf byteBuf, int i) {
+    Preconditions.requireUnsignedMedium(i);
+    // Write each byte separately in reverse order, this mean we can write 1 << 23 without
+    // overflowing.
+    byteBuf.writeByte(i >> 16);
+    byteBuf.writeByte(i >> 8);
+    byteBuf.writeByte(i);
   }
 }

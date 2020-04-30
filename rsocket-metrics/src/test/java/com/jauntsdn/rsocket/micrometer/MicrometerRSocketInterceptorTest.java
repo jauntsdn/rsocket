@@ -35,7 +35,10 @@ final class MicrometerRSocketInterceptorTest {
   @DisplayName("creates MicrometerRSocket")
   @Test
   void apply() {
-    assertThat(new MicrometerRSocketInterceptor(meterRegistry).apply(delegate))
+    assertThat(
+            MicrometerRSocketInterceptors.create(meterRegistry)
+                .requesterInterceptor()
+                .apply(delegate))
         .isInstanceOf(MicrometerRSocket.class);
   }
 
@@ -43,15 +46,19 @@ final class MicrometerRSocketInterceptorTest {
   @Test
   void applyNullDelegate() {
     assertThatNullPointerException()
-        .isThrownBy(() -> new MicrometerRSocketInterceptor(meterRegistry).apply(null))
-        .withMessage("delegate must not be null");
+        .isThrownBy(
+            () ->
+                MicrometerRSocketInterceptors.create(meterRegistry)
+                    .requesterInterceptor()
+                    .apply(null))
+        .withMessage("rSocket");
   }
 
   @DisplayName("constructor throws NullPointerException with null meterRegistry")
   @Test
   void constructorNullMeterRegistry() {
     assertThatNullPointerException()
-        .isThrownBy(() -> new MicrometerRSocketInterceptor(null))
-        .withMessage("meterRegistry must not be null");
+        .isThrownBy(() -> MicrometerRSocketInterceptors.create(null))
+        .withMessage("meterRegistry");
   }
 }

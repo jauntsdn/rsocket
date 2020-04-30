@@ -17,8 +17,6 @@
 package com.jauntsdn.rsocket;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
 
 import com.jauntsdn.rsocket.internal.SynchronizedIntObjectHashMap;
 import io.netty.util.collection.IntObjectMap;
@@ -44,52 +42,6 @@ public class StreamIdSupplierTest {
   }
 
   @Test
-  public void testClientIsValid() {
-    IntObjectMap<Object> map = new SynchronizedIntObjectHashMap<>();
-    StreamIdSupplier s = StreamIdSupplier.clientSupplier();
-
-    assertFalse(s.isBeforeOrCurrent(1));
-    assertFalse(s.isBeforeOrCurrent(3));
-
-    s.nextStreamId(map);
-    assertTrue(s.isBeforeOrCurrent(1));
-    assertFalse(s.isBeforeOrCurrent(3));
-
-    s.nextStreamId(map);
-    assertTrue(s.isBeforeOrCurrent(3));
-
-    // negative
-    assertFalse(s.isBeforeOrCurrent(-1));
-    // connection
-    assertFalse(s.isBeforeOrCurrent(0));
-    // server also accepted (checked externally)
-    assertTrue(s.isBeforeOrCurrent(2));
-  }
-
-  @Test
-  public void testServerIsValid() {
-    IntObjectMap<Object> map = new SynchronizedIntObjectHashMap<>();
-    StreamIdSupplier s = StreamIdSupplier.serverSupplier();
-
-    assertFalse(s.isBeforeOrCurrent(2));
-    assertFalse(s.isBeforeOrCurrent(4));
-
-    s.nextStreamId(map);
-    assertTrue(s.isBeforeOrCurrent(2));
-    assertFalse(s.isBeforeOrCurrent(4));
-
-    s.nextStreamId(map);
-    assertTrue(s.isBeforeOrCurrent(4));
-
-    // negative
-    assertFalse(s.isBeforeOrCurrent(-2));
-    // connection
-    assertFalse(s.isBeforeOrCurrent(0));
-    // client also accepted (checked externally)
-    assertTrue(s.isBeforeOrCurrent(1));
-  }
-
-  @Test
   public void testWrap() {
     IntObjectMap<Object> map = new SynchronizedIntObjectHashMap<>();
     StreamIdSupplier s = new StreamIdSupplier(Integer.MAX_VALUE - 3);
@@ -111,6 +63,7 @@ public class StreamIdSupplierTest {
     map.put(5, new Object());
     map.put(9, new Object());
     StreamIdSupplier s = StreamIdSupplier.clientSupplier();
+    s.lastStreamId = StreamIdSupplier.MAX_STREAM_ID;
     assertEquals(1, s.nextStreamId(map));
     assertEquals(3, s.nextStreamId(map));
     assertEquals(7, s.nextStreamId(map));

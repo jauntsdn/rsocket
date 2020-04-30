@@ -14,18 +14,11 @@
  * limitations under the License.
  */
 
-package com.jauntsdn.rsocket.plugins;
+package com.jauntsdn.rsocket.interceptors;
 
 import com.jauntsdn.rsocket.DuplexConnection;
-import java.util.function.BiFunction;
+import java.util.function.Function;
 
-/** */
-public @FunctionalInterface interface DuplexConnectionInterceptor
-    extends BiFunction<DuplexConnectionInterceptor.Type, DuplexConnection, DuplexConnection> {
-  enum Type {
-    SETUP,
-    CLIENT,
-    SERVER,
-    SOURCE
-  }
-}
+/** Contract to decorate a {@link DuplexConnection} */
+@FunctionalInterface
+public interface DuplexConnectionInterceptor extends Function<DuplexConnection, DuplexConnection> {}

@@ -16,7 +16,7 @@
 
 package com.jauntsdn.rsocket.exceptions;
 
-import com.jauntsdn.rsocket.frame.ErrorType;
+import com.jauntsdn.rsocket.frame.ErrorCodes;
 
 /**
  * The request is invalid.
@@ -51,6 +51,6 @@ public final class InvalidException extends RSocketException {
 
   @Override
   public int errorCode() {
-    return ErrorType.INVALID;
+    return ErrorCodes.INVALID;
   }
 }

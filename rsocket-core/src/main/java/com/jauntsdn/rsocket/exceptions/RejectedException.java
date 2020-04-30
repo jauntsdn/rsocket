@@ -16,7 +16,7 @@
 
 package com.jauntsdn.rsocket.exceptions;
 
-import com.jauntsdn.rsocket.frame.ErrorType;
+import com.jauntsdn.rsocket.frame.ErrorCodes;
 
 /**
  * Despite being a valid request, the Responder decided to reject it. The Responder guarantees that
@@ -53,6 +53,6 @@ public class RejectedException extends RSocketException implements Retryable {
 
   @Override
   public int errorCode() {
-    return ErrorType.REJECTED;
+    return ErrorCodes.REJECTED;
   }
 }

@@ -1,11 +1,11 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2020 - present Maksym Ostroverkhov.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,49 +16,30 @@
 
 package com.jauntsdn.rsocket.micrometer;
 
-import com.jauntsdn.rsocket.DuplexConnection;
-import com.jauntsdn.rsocket.frame.FrameType;
-import com.jauntsdn.rsocket.plugins.DuplexConnectionInterceptor;
-import io.micrometer.core.instrument.Meter;
-import io.micrometer.core.instrument.MeterRegistry;
-import io.micrometer.core.instrument.Tag;
-import java.util.Objects;
+import com.jauntsdn.rsocket.interceptors.DuplexConnectionInterceptor;
 
 /**
- * An implementation of {@link DuplexConnectionInterceptor} that intercepts frames and gathers
- * Micrometer metrics about them.
- *
- * <p>The metric is called {@code rsocket.frame} and is tagged with {@code connection.type} ({@link
- * DuplexConnectionInterceptor.Type}), {@code frame.type} ({@link FrameType}), and any additional
- * configured tags. {@code rsocket.duplex.connection.close} and {@code
- * rsocket.duplex.connection.dispose} metrics, tagged with {@code connection.type} ({@link
- * DuplexConnectionInterceptor.Type}) and any additional configured tags are also collected.
+ * Marker interface for Micrometer DuplexConnection interceptors.
  *
  * @see <a href="https://micrometer.io">Micrometer</a>
  */
-public final class MicrometerDuplexConnectionInterceptor implements DuplexConnectionInterceptor {
+@FunctionalInterface
+public interface MicrometerDuplexConnectionInterceptor extends DuplexConnectionInterceptor {
+  /** Total frames size in bytes. Tagged with {@link #TAG_FRAME_DIRECTION} */
+  String COUNTER_FRAMES_SIZE = "rsocket.frame.size.bytes";
 
-  private final MeterRegistry meterRegistry;
+  /** Frames count. Tagged with {@link #TAG_FRAME_DIRECTION} */
+  String COUNTER_FRAMES_COUNT = "rsocket.frame";
 
-  private final Tag[] tags;
+  /** Number of opened connections. Tagged with {@link #TAG_FRAME_DIRECTION} */
+  String COUNTER_CONNECTIONS_OPENED = "rsocket.connection.opened";
 
-  /**
-   * Creates a new {@link DuplexConnectionInterceptor}.
-   *
-   * @param meterRegistry the {@link MeterRegistry} to use to create {@link Meter}s.
-   * @param tags the additional tags to attach to each {@link Meter}
-   * @throws NullPointerException if {@code meterRegistry} is {@code null}
-   */
-  public MicrometerDuplexConnectionInterceptor(MeterRegistry meterRegistry, Tag... tags) {
-    this.meterRegistry = Objects.requireNonNull(meterRegistry, "meterRegistry must not be null");
-    this.tags = tags;
-  }
+  /** Number of closed connections. Tagged with {@link #TAG_FRAME_DIRECTION} */
+  String COUNTER_CONNECTIONS_CLOSED = "rsocket.connection.closed";
 
-  @Override
-  public MicrometerDuplexConnection apply(Type connectionType, DuplexConnection delegate) {
-    Objects.requireNonNull(connectionType, "connectionType must not be null");
-    Objects.requireNonNull(delegate, "delegate must not be null");
+  /** Frames direction for one side of connection */
+  String TAG_FRAME_DIRECTION = "direction";
 
-    return new MicrometerDuplexConnection(connectionType, delegate, meterRegistry, tags);
-  }
+  String TAG_FRAME_DIRECTION_INBOUND = "inbound";
+  String TAG_FRAME_DIRECTION_OUTBOUND = "outbound";
 }

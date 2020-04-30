@@ -16,7 +16,8 @@
 
 package com.jauntsdn.rsocket;
 
-import com.jauntsdn.rsocket.exceptions.ApplicationErrorException;
+import static com.jauntsdn.rsocket.StreamErrorMappers.*;
+
 import com.jauntsdn.rsocket.frame.*;
 import com.jauntsdn.rsocket.frame.decoder.PayloadDecoder;
 import com.jauntsdn.rsocket.internal.SynchronizedIntObjectHashMap;
@@ -51,6 +52,7 @@ class RSocketResponder implements ResponderRSocket {
   private final ResponderRSocket responderRSocket;
   private final PayloadDecoder payloadDecoder;
   private final Consumer<Throwable> errorConsumer;
+  private final ErrorFrameMapper errorFrameMapper;
 
   private final IntObjectMap<Subscription> senders;
   private final IntObjectMap<Processor<Payload, Payload>> receivers;
@@ -65,7 +67,8 @@ class RSocketResponder implements ResponderRSocket {
       DuplexConnection connection,
       RSocket requestHandler,
       PayloadDecoder payloadDecoder,
-      Consumer<Throwable> errorConsumer) {
+      Consumer<Throwable> errorConsumer,
+      ErrorFrameMapper errorFrameMapper) {
     this.allocator = allocator;
     this.connection = connection;
 
@@ -75,6 +78,7 @@ class RSocketResponder implements ResponderRSocket {
 
     this.payloadDecoder = payloadDecoder;
     this.errorConsumer = errorConsumer;
+    this.errorFrameMapper = errorFrameMapper;
     this.senders = new SynchronizedIntObjectHashMap<>();
     this.receivers = new SynchronizedIntObjectHashMap<>();
 
@@ -256,7 +260,7 @@ class RSocketResponder implements ResponderRSocket {
         case ERROR:
           receiver = receivers.get(streamId);
           if (receiver != null) {
-            receiver.onError(new ApplicationErrorException(ErrorFrameFlyweight.dataUtf8(frame)));
+            receiver.onError(errorFrameMapper.streamFrameToError(frame, StreamType.REQUEST));
           }
           break;
         case SETUP:
@@ -337,7 +341,8 @@ class RSocketResponder implements ResponderRSocket {
 
           @Override
           protected void hookOnError(Throwable throwable) {
-            sendProcessor.onNext(ErrorFrameFlyweight.encode(allocator, streamId, throwable));
+            sendProcessor.onNext(
+                errorFrameMapper.streamErrorToFrame(streamId, StreamType.RESPONSE, throwable));
           }
 
           @Override
@@ -387,7 +392,8 @@ class RSocketResponder implements ResponderRSocket {
 
           @Override
           protected void hookOnError(Throwable throwable) {
-            sendProcessor.onNext(ErrorFrameFlyweight.encode(allocator, streamId, throwable));
+            sendProcessor.onNext(
+                errorFrameMapper.streamErrorToFrame(streamId, StreamType.RESPONSE, throwable));
           }
 
           @Override
