@@ -23,9 +23,9 @@ class LeaseRSocketResponder extends RSocketResponder {
       RSocket requestHandler,
       PayloadDecoder payloadDecoder,
       Consumer<Throwable> errorConsumer,
-      ErrorFrameMapper errorFrameMapper,
+      StreamErrorMapper streamErrorMapper,
       ResponderLeaseHandler leaseHandler) {
-    super(allocator, connection, requestHandler, payloadDecoder, errorConsumer, errorFrameMapper);
+    super(allocator, connection, requestHandler, payloadDecoder, errorConsumer, streamErrorMapper);
     this.leaseHandler = leaseHandler;
     this.leaseDisposable = leaseHandler.send(this::sendFrame);
   }

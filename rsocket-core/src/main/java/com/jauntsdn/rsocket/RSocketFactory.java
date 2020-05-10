@@ -16,12 +16,11 @@
 
 package com.jauntsdn.rsocket;
 
+import static com.jauntsdn.rsocket.RSocketErrorMappers.*;
 import static com.jauntsdn.rsocket.StreamErrorMappers.*;
 import static com.jauntsdn.rsocket.internal.ClientSetup.DefaultClientSetup;
 import static com.jauntsdn.rsocket.internal.ClientSetup.ResumableClientSetup;
 
-import com.jauntsdn.rsocket.exceptions.InvalidSetupException;
-import com.jauntsdn.rsocket.exceptions.RejectedSetupException;
 import com.jauntsdn.rsocket.fragmentation.FragmentationDuplexConnection;
 import com.jauntsdn.rsocket.frame.*;
 import com.jauntsdn.rsocket.frame.decoder.PayloadDecoder;
@@ -93,7 +92,8 @@ public class RSocketFactory {
     private ClientSocketAcceptor acceptor = (setup, sendingSocket) -> new AbstractRSocket() {};
 
     private Consumer<Throwable> errorConsumer = Throwable::printStackTrace;
-    private StreamErrorMappers errorMappers = StreamErrorMappers.create();
+    private StreamErrorMappers streamErrorMappers = StreamErrorMappers.create();
+    private RSocketErrorMappers rSocketErrorMappers = RSocketErrorMappers.create();
     private Interceptors.Configurer interceptorsConfigurer = setupPayload -> Interceptors.noop();
 
     private Payload setupPayload = EmptyPayload.INSTANCE;
@@ -285,11 +285,20 @@ public class RSocketFactory {
     }
 
     /**
-     * @param errorMappers configures custom error mappers of incoming and outgoing streams.
+     * @param streamErrorMappers configures custom error mappers of incoming and outgoing streams.
      * @return this {@link ClientRSocketFactory} instance
      */
-    public ClientRSocketFactory streamErrorMapper(StreamErrorMappers errorMappers) {
-      this.errorMappers = errorMappers;
+    public ClientRSocketFactory streamErrorMapper(StreamErrorMappers streamErrorMappers) {
+      this.streamErrorMappers = streamErrorMappers;
+      return this;
+    }
+
+    /**
+     * @param rSocketErrorMappers configures custom error mappers of RSocket.
+     * @return this {@link ClientRSocketFactory} instance
+     */
+    public ClientRSocketFactory rSocketErrorMapper(RSocketErrorMappers rSocketErrorMappers) {
+      this.rSocketErrorMappers = rSocketErrorMappers;
       return this;
     }
 
@@ -307,6 +316,10 @@ public class RSocketFactory {
       private final Supplier<ClientTransport> transportClient;
       private final int keepAliveTickPeriod;
       private final int keepAliveTimeout;
+      private final StreamErrorMapper streamErrorMapper =
+          streamErrorMappers.createErrorMapper(allocator);
+      private final RSocketErrorMapper rSocketErrorMapper =
+          rSocketErrorMappers.createErrorMapper(allocator);
 
       StartClient(Supplier<ClientTransport> transportClient) {
         this.transportClient = transportClient;
@@ -319,6 +332,7 @@ public class RSocketFactory {
         return newConnection()
             .flatMap(
                 connection -> {
+                  ByteBufAllocator allocator = ClientRSocketFactory.this.allocator;
                   if (acceptFragmentedFrames) {
                     connection =
                         new FragmentationDuplexConnection(connection, allocator, frameSizeLimit);
@@ -362,16 +376,14 @@ public class RSocketFactory {
                   final int keepAliveTimeout = this.keepAliveTimeout;
                   final int keepAliveTickPeriod = this.keepAliveTickPeriod;
 
-                  ErrorFrameMapper errorFrameMapper =
-                      errorMappers.createErrorFrameMapper(allocator);
-
                   RSocket rSocketRequester =
                       rSocketsFactory.createRequester(
                           allocator,
                           multiplexer.asClientConnection(),
                           payloadDecoder,
                           errorConsumer,
-                          errorFrameMapper,
+                          streamErrorMapper,
+                          rSocketErrorMapper,
                           StreamIdSupplier.clientSupplier(),
                           keepAliveTickPeriod,
                           keepAliveTimeout,
@@ -398,7 +410,7 @@ public class RSocketFactory {
                           wrappedRSocketHandler,
                           payloadDecoder,
                           errorConsumer,
-                          errorFrameMapper);
+                          streamErrorMapper);
 
                   return wrappedConnection.sendOne(setupFrame).thenReturn(wrappedRSocketRequester);
                 });
@@ -461,7 +473,9 @@ public class RSocketFactory {
     private ServerSocketAcceptor acceptor;
     private PayloadDecoder payloadDecoder = PayloadDecoder.ZERO_COPY;
     private Consumer<Throwable> errorConsumer = Throwable::printStackTrace;
-    private StreamErrorMappers errorMappers = StreamErrorMappers.create();
+    private StreamErrorMappers streamErrorMappers = StreamErrorMappers.create();
+    private RSocketErrorMappers rSocketErrorMappers = RSocketErrorMappers.create();
+
     private Interceptors.Configurer interceptorsConfigurer = setupPayload -> Interceptors.noop();
 
     private boolean resumeSupported;
@@ -526,7 +540,16 @@ public class RSocketFactory {
      * @return this {@link ServerRSocketFactory} instance
      */
     public ServerRSocketFactory streamErrorMapper(StreamErrorMappers errorMappers) {
-      this.errorMappers = errorMappers;
+      this.streamErrorMappers = errorMappers;
+      return this;
+    }
+
+    /**
+     * @param rSocketErrorMappers configures custom error mappers of RSocket.
+     * @return this {@link ServerRSocketFactory} instance
+     */
+    public ServerRSocketFactory rSocketErrorMapper(RSocketErrorMappers rSocketErrorMappers) {
+      this.rSocketErrorMappers = rSocketErrorMappers;
       return this;
     }
 
@@ -607,6 +630,10 @@ public class RSocketFactory {
 
     private class ServerStart<T extends Closeable> implements Start<T> {
       private final Supplier<ServerTransport<T>> transportServer;
+      private final StreamErrorMapper streamErrorMapper =
+          streamErrorMappers.createErrorMapper(allocator);
+      private final RSocketErrorMapper rSocketErrorMapper =
+          rSocketErrorMappers.createErrorMapper(allocator);
 
       public ServerStart(Supplier<ServerTransport<T>> transportServer) {
         this.transportServer = transportServer;
@@ -672,9 +699,9 @@ public class RSocketFactory {
                 if (!SetupFrameFlyweight.isSupportedVersion(setupFrame)) {
                   return sendError(
                           multiplexer,
-                          new InvalidSetupException(
-                              "Unsupported version: "
-                                  + SetupFrameFlyweight.humanReadableVersion(setupFrame)))
+                          ErrorCodes.INVALID_SETUP,
+                          "Unsupported version: "
+                              + SetupFrameFlyweight.humanReadableVersion(setupFrame))
                       .doFinally(
                           signalType -> {
                             setupFrame.release();
@@ -685,7 +712,7 @@ public class RSocketFactory {
                 boolean isLeaseEnabled = leaseEnabled;
 
                 if (SetupFrameFlyweight.honorLease(setupFrame) && !isLeaseEnabled) {
-                  return sendError(multiplexer, new InvalidSetupException("lease is not supported"))
+                  return sendError(multiplexer, ErrorCodes.INVALID_SETUP, "lease is not supported")
                       .doFinally(
                           signalType -> {
                             setupFrame.release();
@@ -708,16 +735,14 @@ public class RSocketFactory {
                               serverConnection.scheduler(),
                               leaseConfigurer);
 
-                      ErrorFrameMapper errorFrameMapper =
-                          errorMappers.createErrorFrameMapper(allocator);
-
                       RSocket rSocketRequester =
                           rSocketsFactory.createRequester(
                               allocator,
                               serverConnection,
                               payloadDecoder,
                               errorConsumer,
-                              errorFrameMapper,
+                              streamErrorMapper,
+                              rSocketErrorMapper,
                               StreamIdSupplier.serverSupplier(),
                               0,
                               setupPayload.keepAliveMaxLifetime(),
@@ -734,7 +759,10 @@ public class RSocketFactory {
                           .accept(setupPayload, wrappedRSocketRequester)
                           .onErrorResume(
                               err ->
-                                  sendError(multiplexer, rejectedSetupError(err))
+                                  sendError(
+                                          multiplexer,
+                                          ErrorCodes.REJECTED_SETUP,
+                                          rejectedSetupErrorMessage(err))
                                       .then(Mono.error(err)))
                           .doOnNext(
                               rSocketHandler -> {
@@ -748,7 +776,7 @@ public class RSocketFactory {
                                         wrappedRSocketHandler,
                                         payloadDecoder,
                                         errorConsumer,
-                                        errorFrameMapper);
+                                        streamErrorMapper);
                               })
                           .doFinally(signalType -> setupPayload.release())
                           .then();
@@ -779,8 +807,8 @@ public class RSocketFactory {
       private Mono<Void> acceptUnknown(ByteBuf frame, ClientServerInputMultiplexer multiplexer) {
         return sendError(
                 multiplexer,
-                new InvalidSetupException(
-                    "invalid setup frame: " + FrameHeaderFlyweight.frameType(frame)))
+                ErrorCodes.INVALID_SETUP,
+                "invalid setup frame: " + FrameHeaderFlyweight.frameType(frame))
             .doFinally(
                 signalType -> {
                   frame.release();
@@ -788,16 +816,17 @@ public class RSocketFactory {
                 });
       }
 
-      private Mono<Void> sendError(ClientServerInputMultiplexer multiplexer, Exception exception) {
+      private Mono<Void> sendError(
+          ClientServerInputMultiplexer multiplexer, int errorCode, String errorMessage) {
         return multiplexer
             .asSetupConnection()
-            .sendOne(ErrorFrameFlyweight.encode(allocator, 0, exception))
+            .sendOne(rSocketErrorMapper.rSocketErrorToFrame(errorCode, errorMessage))
             .onErrorResume(err -> Mono.empty());
       }
 
-      private Exception rejectedSetupError(Throwable err) {
+      private String rejectedSetupErrorMessage(Throwable err) {
         String msg = err.getMessage();
-        return new RejectedSetupException(msg == null ? "rejected by server acceptor" : msg);
+        return msg == null ? "rejected by server acceptor" : msg;
       }
     }
   }

@@ -16,11 +16,11 @@
 
 package com.jauntsdn.rsocket;
 
+import static com.jauntsdn.rsocket.RSocketErrorMappers.*;
 import static com.jauntsdn.rsocket.StreamErrorMappers.*;
 import static com.jauntsdn.rsocket.keepalive.KeepAlive.ClientKeepAlive;
 
 import com.jauntsdn.rsocket.exceptions.ConnectionErrorException;
-import com.jauntsdn.rsocket.exceptions.Exceptions;
 import com.jauntsdn.rsocket.frame.*;
 import com.jauntsdn.rsocket.frame.decoder.PayloadDecoder;
 import com.jauntsdn.rsocket.internal.SynchronizedIntObjectHashMap;
@@ -58,7 +58,8 @@ class RSocketRequester implements RSocket {
   private final DuplexConnection connection;
   private final PayloadDecoder payloadDecoder;
   private final Consumer<Throwable> errorConsumer;
-  private final ErrorFrameMapper errorFrameMapper;
+  private final StreamErrorMapper streamErrorMapper;
+  private final RSocketErrorMapper rSocketErrorMapper;
   private final StreamIdSupplier streamIdSupplier;
   private final IntObjectMap<Subscription> senders;
   private final IntObjectMap<Processor<Payload, Payload>> receivers;
@@ -74,7 +75,8 @@ class RSocketRequester implements RSocket {
       DuplexConnection connection,
       PayloadDecoder payloadDecoder,
       Consumer<Throwable> errorConsumer,
-      ErrorFrameMapper errorFrameMapper,
+      StreamErrorMapper streamErrorMapper,
+      RSocketErrorMapper rSocketErrorMapper,
       StreamIdSupplier streamIdSupplier,
       int keepAliveTickPeriod,
       int keepAliveAckTimeout,
@@ -83,7 +85,8 @@ class RSocketRequester implements RSocket {
     this.connection = connection;
     this.payloadDecoder = payloadDecoder;
     this.errorConsumer = errorConsumer;
-    this.errorFrameMapper = errorFrameMapper;
+    this.streamErrorMapper = streamErrorMapper;
+    this.rSocketErrorMapper = rSocketErrorMapper;
     this.streamIdSupplier = streamIdSupplier;
     this.senders = new SynchronizedIntObjectHashMap<>();
     this.receivers = new SynchronizedIntObjectHashMap<>();
@@ -461,7 +464,7 @@ class RSocketRequester implements RSocket {
                               int streamId = stream.getId();
                               if (streamId > 0) {
                                 sendProcessor.onNext(
-                                    errorFrameMapper.streamErrorToFrame(
+                                    streamErrorMapper.streamErrorToFrame(
                                         streamId, StreamType.REQUEST, t));
                               }
                               // todo signal error wrapping request error
@@ -569,7 +572,7 @@ class RSocketRequester implements RSocket {
     if (receiver != null) {
       switch (type) {
         case ERROR:
-          receiver.onError(errorFrameMapper.streamFrameToError(frame, StreamType.RESPONSE));
+          receiver.onError(streamErrorMapper.streamFrameToError(frame, StreamType.RESPONSE));
           receivers.remove(streamId);
           break;
         case NEXT_COMPLETE:
@@ -620,12 +623,12 @@ class RSocketRequester implements RSocket {
                   String.format("No keep-alive acks for %d ms", signal.<Integer>value()));
           break;
         case RSOCKET_CLOSE_REMOTE:
-          e = Exceptions.from(signal.value());
+          e = rSocketErrorMapper.frameToRSocketError(signal.value());
           break;
         case RSOCKET_CLOSE_LOCAL:
           String errorMessage = signal.value();
           ByteBuf connectionErrorFrame =
-              ErrorFrameFlyweight.encode(allocator, 0, ErrorCodes.CONNECTION_ERROR, errorMessage);
+              rSocketErrorMapper.rSocketErrorToFrame(ErrorCodes.CONNECTION_ERROR, errorMessage);
           sendProcessor.onNext(connectionErrorFrame);
           e = new ConnectionErrorException(errorMessage);
           break;
