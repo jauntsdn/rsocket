@@ -79,4 +79,8 @@ public interface RSocket extends Availability, Closeable {
   default Optional<Scheduler> scheduler() {
     return Optional.empty();
   }
+
+  default void dispose(String reason, boolean isGraceful) {
+    dispose();
+  }
 }

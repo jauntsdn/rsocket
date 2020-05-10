@@ -3,12 +3,10 @@ package com.jauntsdn.rsocket;
 import static com.jauntsdn.rsocket.transport.ServerTransport.ConnectionAcceptor;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.jauntsdn.rsocket.exceptions.ConnectionErrorException;
 import com.jauntsdn.rsocket.exceptions.Exceptions;
 import com.jauntsdn.rsocket.exceptions.RejectedSetupException;
-import com.jauntsdn.rsocket.frame.ErrorFrameFlyweight;
-import com.jauntsdn.rsocket.frame.FrameHeaderFlyweight;
-import com.jauntsdn.rsocket.frame.FrameType;
-import com.jauntsdn.rsocket.frame.SetupFrameFlyweight;
+import com.jauntsdn.rsocket.frame.*;
 import com.jauntsdn.rsocket.frame.decoder.PayloadDecoder;
 import com.jauntsdn.rsocket.keepalive.KeepAliveHandler;
 import com.jauntsdn.rsocket.test.util.TestDuplexConnection;
@@ -16,8 +14,10 @@ import com.jauntsdn.rsocket.transport.ServerTransport;
 import com.jauntsdn.rsocket.util.DefaultPayload;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
+import io.netty.buffer.Unpooled;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import reactor.core.publisher.Mono;
@@ -25,10 +25,10 @@ import reactor.core.publisher.UnicastProcessor;
 import reactor.core.scheduler.Schedulers;
 import reactor.test.StepVerifier;
 
-public class SetupRejectionTest {
+public class RSocketConnectionTerminationTest {
 
   @Test
-  void responderRejectSetup() {
+  void serverRejectSetup() {
     SingleConnectionTransport transport = new SingleConnectionTransport();
 
     String errorMsg = "error";
@@ -47,7 +47,7 @@ public class SetupRejectionTest {
   }
 
   @Test
-  void requesterStreamsTerminatedOnZeroErrorFrame() {
+  void clientRejectSetup() {
     TestDuplexConnection conn = new TestDuplexConnection(Schedulers.single());
     List<Throwable> errors = new ArrayList<>();
     RSocketRequester rSocket =
@@ -83,7 +83,7 @@ public class SetupRejectionTest {
   }
 
   @Test
-  void requesterNewStreamsTerminatedAfterZeroErrorFrame() {
+  void clientNewStreamsTerminatedAfterRejectSetup() {
     TestDuplexConnection conn = new TestDuplexConnection(Schedulers.single());
     RSocketRequester rSocket =
         new RSocketRequester(
@@ -108,6 +108,76 @@ public class SetupRejectionTest {
         .expectErrorMatches(
             err -> err instanceof RejectedSetupException && "error".equals(err.getMessage()))
         .verify(Duration.ofSeconds(5));
+  }
+
+  @Test
+  void disposeMessageRequesterRSocket() {
+    TestDuplexConnection conn = new TestDuplexConnection(Schedulers.single());
+    RSocketRequester rSocket =
+        new RSocketRequester(
+            ByteBufAllocator.DEFAULT,
+            conn,
+            PayloadDecoder.DEFAULT,
+            err -> {},
+            StreamErrorMappers.create().createErrorFrameMapper(ByteBufAllocator.DEFAULT),
+            StreamIdSupplier.clientSupplier(),
+            100_000,
+            100_000,
+            new KeepAliveHandler.DefaultKeepAliveHandler(conn));
+
+    String errorMsg = "error";
+
+    StepVerifier.create(
+            rSocket
+                .requestResponse(DefaultPayload.create("test"))
+                .doOnRequest(ignored -> rSocket.dispose(errorMsg, false)))
+        .expectErrorMatches(
+            err -> err instanceof ConnectionErrorException && errorMsg.equals(err.getMessage()))
+        .verify(Duration.ofSeconds(5));
+
+    Collection<ByteBuf> sent = conn.getSent();
+
+    assertThat(sent).isNotEmpty();
+
+    ByteBuf lastFrame = Unpooled.EMPTY_BUFFER;
+    for (ByteBuf frame : sent) {
+      lastFrame = frame;
+    }
+    assertThat(FrameHeaderFlyweight.frameType(lastFrame)).isEqualTo(FrameType.ERROR);
+    assertThat(FrameHeaderFlyweight.streamId(lastFrame)).isEqualTo(0);
+    assertThat(ErrorFrameFlyweight.errorCode(lastFrame)).isEqualTo(ErrorCodes.CONNECTION_ERROR);
+    assertThat(ErrorFrameFlyweight.dataUtf8(lastFrame)).isEqualTo(errorMsg);
+
+    assertThat(rSocket.isDisposed()).isTrue();
+  }
+
+  @Test
+  void disposeMessageResponderRSocket() {
+    TestDuplexConnection conn = new TestDuplexConnection(Schedulers.single());
+    RSocketRequester rSocket =
+        new RSocketRequester(
+            ByteBufAllocator.DEFAULT,
+            conn,
+            PayloadDecoder.DEFAULT,
+            err -> {},
+            StreamErrorMappers.create().createErrorFrameMapper(ByteBufAllocator.DEFAULT),
+            StreamIdSupplier.clientSupplier(),
+            100_000,
+            100_000,
+            new KeepAliveHandler.DefaultKeepAliveHandler(conn));
+
+    String errorMsg = "error";
+
+    conn.addToReceivedBuffer(
+        ErrorFrameFlyweight.encode(
+            ByteBufAllocator.DEFAULT, 0, ErrorCodes.CONNECTION_ERROR, errorMsg));
+
+    StepVerifier.create(rSocket.requestResponse(DefaultPayload.create("test")))
+        .expectErrorMatches(
+            err -> err instanceof ConnectionErrorException && errorMsg.equals(err.getMessage()))
+        .verify(Duration.ofSeconds(5));
+
+    assertThat(rSocket.isDisposed()).isTrue();
   }
 
   private static class RejectingAcceptor implements ServerSocketAcceptor {
