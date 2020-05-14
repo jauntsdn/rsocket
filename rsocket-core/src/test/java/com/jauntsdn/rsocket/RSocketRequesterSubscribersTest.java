@@ -70,7 +70,8 @@ class RSocketRequesterSubscribersTest {
             StreamIdSupplier.clientSupplier(),
             100_000,
             100_000,
-            new KeepAliveHandler.DefaultKeepAliveHandler(connection));
+            new KeepAliveHandler.DefaultKeepAliveHandler(connection),
+            Duration.ofSeconds(300));
   }
 
   @ParameterizedTest

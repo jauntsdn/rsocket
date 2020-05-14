@@ -8,6 +8,7 @@ import com.jauntsdn.rsocket.keepalive.KeepAliveHandler;
 import com.jauntsdn.rsocket.lease.RequesterLeaseHandler;
 import com.jauntsdn.rsocket.lease.ResponderLeaseHandler;
 import io.netty.buffer.ByteBufAllocator;
+import java.time.Duration;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
 import javax.annotation.Nullable;
@@ -35,7 +36,8 @@ interface RSocketsFactory {
       StreamIdSupplier streamIdSupplier,
       int keepAliveTickPeriod,
       int keepAliveAckTimeout,
-      KeepAliveHandler keepAliveHandler);
+      KeepAliveHandler keepAliveHandler,
+      Duration gracefulShutdownTimeout);
 
   static RSocketsFactory createClient(
       boolean isLease, Scheduler scheduler, Leases.ClientConfigurer leaseConfigurer) {
@@ -103,7 +105,8 @@ interface RSocketsFactory {
         StreamIdSupplier streamIdSupplier,
         int keepAliveTickPeriod,
         int keepAliveAckTimeout,
-        KeepAliveHandler keepAliveHandler) {
+        KeepAliveHandler keepAliveHandler,
+        Duration gracefulShutdownTimeout) {
       RequesterLeaseHandler.Impl leaseHandler = new RequesterLeaseHandler.Impl();
 
       return new LeaseRSocketRequester(
@@ -117,6 +120,7 @@ interface RSocketsFactory {
           keepAliveTickPeriod,
           keepAliveAckTimeout,
           keepAliveHandler,
+          gracefulShutdownTimeout,
           leaseHandler,
           rttConsumer);
     }
@@ -148,7 +152,8 @@ interface RSocketsFactory {
         StreamIdSupplier streamIdSupplier,
         int keepAliveTickPeriod,
         int keepAliveAckTimeout,
-        KeepAliveHandler keepAliveHandler) {
+        KeepAliveHandler keepAliveHandler,
+        Duration gracefulShutdownTimeout) {
       return new RSocketRequester(
           allocator,
           connection,
@@ -159,7 +164,8 @@ interface RSocketsFactory {
           streamIdSupplier,
           keepAliveTickPeriod,
           keepAliveAckTimeout,
-          keepAliveHandler);
+          keepAliveHandler,
+          gracefulShutdownTimeout);
     }
   }
 }

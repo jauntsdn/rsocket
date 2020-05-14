@@ -182,7 +182,8 @@ public class RSocketTest {
               StreamIdSupplier.clientSupplier(),
               100_000,
               100_000,
-              new KeepAliveHandler.DefaultKeepAliveHandler(clientConnection));
+              new KeepAliveHandler.DefaultKeepAliveHandler(clientConnection),
+              Duration.ofSeconds(300));
     }
 
     public void setRequestAcceptor(RSocket requestAcceptor) {

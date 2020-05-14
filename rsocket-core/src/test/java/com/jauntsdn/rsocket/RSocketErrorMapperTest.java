@@ -17,7 +17,7 @@ public class RSocketErrorMapperTest {
     RSocketErrorMappers.RSocketErrorMapper errorMapper =
         RSocketErrorMappers.create().createErrorMapper(ByteBufAllocator.DEFAULT);
     String errorMessage = "error";
-    ByteBuf frame = errorMapper.rSocketErrorToFrame(ErrorCodes.CONNECTION_ERROR, errorMessage);
+    ByteBuf frame = errorMapper.sendErrorFrame(ErrorCodes.CONNECTION_ERROR, errorMessage);
     Assertions.assertThat(FrameHeaderFlyweight.frameType(frame)).isEqualTo(FrameType.ERROR);
     Assertions.assertThat(ErrorFrameFlyweight.errorCode(frame))
         .isEqualTo(ErrorCodes.CONNECTION_ERROR);
@@ -31,7 +31,7 @@ public class RSocketErrorMapperTest {
             .sendMapper((errorCode, errorMessage) -> null)
             .createErrorMapper(ByteBufAllocator.DEFAULT);
     String errorMessage = "error";
-    ByteBuf frame = errorMapper.rSocketErrorToFrame(ErrorCodes.CONNECTION_ERROR, errorMessage);
+    ByteBuf frame = errorMapper.sendErrorFrame(ErrorCodes.CONNECTION_ERROR, errorMessage);
     Assertions.assertThat(FrameHeaderFlyweight.frameType(frame)).isEqualTo(FrameType.ERROR);
     Assertions.assertThat(ErrorFrameFlyweight.errorCode(frame))
         .isEqualTo(ErrorCodes.CONNECTION_ERROR);
@@ -46,7 +46,7 @@ public class RSocketErrorMapperTest {
         RSocketErrorMappers.create()
             .sendMapper((code, message) -> mappedMessage)
             .createErrorMapper(ByteBufAllocator.DEFAULT);
-    ByteBuf frame = errorMapper.rSocketErrorToFrame(ErrorCodes.CONNECTION_ERROR, errorMessage);
+    ByteBuf frame = errorMapper.sendErrorFrame(ErrorCodes.CONNECTION_ERROR, errorMessage);
     Assertions.assertThat(FrameHeaderFlyweight.frameType(frame)).isEqualTo(FrameType.ERROR);
     Assertions.assertThat(ErrorFrameFlyweight.errorCode(frame))
         .isEqualTo(ErrorCodes.CONNECTION_ERROR);
@@ -61,7 +61,7 @@ public class RSocketErrorMapperTest {
     String errorMessage = "error";
     ByteBuf frame =
         ErrorFrameFlyweight.encode(allocator, 0, ErrorCodes.CONNECTION_ERROR, errorMessage);
-    Exception e = errorMapper.frameToRSocketError(frame);
+    Exception e = errorMapper.receiveErrorFrame(frame);
     Assertions.assertThat(e).isInstanceOf(Exceptions.from(frame).getClass());
     Assertions.assertThat(e.getMessage()).isEqualTo(e.getMessage());
   }
@@ -76,7 +76,7 @@ public class RSocketErrorMapperTest {
     String errorMessage = "error";
     ByteBuf frame =
         ErrorFrameFlyweight.encode(allocator, 0, ErrorCodes.CONNECTION_ERROR, errorMessage);
-    Exception e = errorMapper.frameToRSocketError(frame);
+    Exception e = errorMapper.receiveErrorFrame(frame);
     Assertions.assertThat(e).isInstanceOf(Exceptions.from(frame).getClass());
     Assertions.assertThat(e.getMessage()).isEqualTo(e.getMessage());
   }
@@ -93,7 +93,7 @@ public class RSocketErrorMapperTest {
 
     ByteBuf frame =
         ErrorFrameFlyweight.encode(allocator, 0, ErrorCodes.CONNECTION_ERROR, errorMessage);
-    Exception e = errorMapper.frameToRSocketError(frame);
+    Exception e = errorMapper.receiveErrorFrame(frame);
     Assertions.assertThat(e).isInstanceOf(IllegalArgumentException.class);
     Assertions.assertThat(e.getMessage()).isEqualTo(mappedMessage);
   }

@@ -94,6 +94,7 @@ class RSocketLeaseTest {
             100_000,
             100_000,
             new KeepAliveHandler.DefaultKeepAliveHandler(connection),
+            Duration.ofSeconds(300),
             requesterLeaseHandler,
             rtt -> {});
 
