@@ -19,14 +19,13 @@ package com.jauntsdn.rsocket;
 import com.jauntsdn.rsocket.frame.FrameHeaderFlyweight;
 import com.jauntsdn.rsocket.frame.SetupFrameFlyweight;
 import io.netty.buffer.ByteBuf;
-import io.netty.util.AbstractReferenceCounted;
 import javax.annotation.Nullable;
 
 /**
  * Exposed to server for determination of ResponderRSocket based on mime types and SETUP
  * metadata/data
  */
-public abstract class ConnectionSetupPayload extends AbstractReferenceCounted implements Payload {
+public abstract class ConnectionSetupPayload implements Payload {
 
   public static ConnectionSetupPayload create(final ByteBuf setupFrame) {
     return new DefaultConnectionSetupPayload(setupFrame);
@@ -50,16 +49,10 @@ public abstract class ConnectionSetupPayload extends AbstractReferenceCounted im
   public abstract ByteBuf resumeToken();
 
   @Override
-  public ConnectionSetupPayload retain() {
-    super.retain();
-    return this;
-  }
+  public abstract ConnectionSetupPayload retain();
 
   @Override
-  public ConnectionSetupPayload retain(int increment) {
-    super.retain(increment);
-    return this;
-  }
+  public abstract ConnectionSetupPayload retain(int increment);
 
   @Override
   public abstract ConnectionSetupPayload touch();
@@ -120,6 +113,18 @@ public abstract class ConnectionSetupPayload extends AbstractReferenceCounted im
     }
 
     @Override
+    public ConnectionSetupPayload retain() {
+      setupFrame.retain();
+      return this;
+    }
+
+    @Override
+    public ConnectionSetupPayload retain(int increment) {
+      setupFrame.retain(increment);
+      return this;
+    }
+
+    @Override
     public ConnectionSetupPayload touch() {
       setupFrame.touch();
       return this;
@@ -132,8 +137,18 @@ public abstract class ConnectionSetupPayload extends AbstractReferenceCounted im
     }
 
     @Override
-    protected void deallocate() {
-      setupFrame.release();
+    public boolean release() {
+      return setupFrame.release();
+    }
+
+    @Override
+    public boolean release(int decrement) {
+      return setupFrame.release(decrement);
+    }
+
+    @Override
+    public int refCnt() {
+      return setupFrame.refCnt();
     }
 
     @Override

@@ -9,8 +9,10 @@ import com.jauntsdn.rsocket.exceptions.RejectedSetupException;
 import com.jauntsdn.rsocket.frame.*;
 import com.jauntsdn.rsocket.frame.decoder.PayloadDecoder;
 import com.jauntsdn.rsocket.keepalive.KeepAliveHandler;
+import com.jauntsdn.rsocket.test.util.TestClientTransport;
 import com.jauntsdn.rsocket.test.util.TestDuplexConnection;
 import com.jauntsdn.rsocket.transport.ServerTransport;
+import com.jauntsdn.rsocket.util.ByteBufPayload;
 import com.jauntsdn.rsocket.util.DefaultPayload;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
@@ -19,6 +21,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.UnicastProcessor;
@@ -186,6 +189,28 @@ public class RSocketConnectionTerminationTest {
         .verify(Duration.ofSeconds(5));
 
     assertThat(rSocket.isDisposed()).isTrue();
+  }
+
+  @Test
+  void poolableConnectionSetup() {
+    Payload payload = ByteBufPayload.create("data", "metadata");
+    TestClientTransport transport = new TestClientTransport(Schedulers.single());
+    Mono<RSocket> rSocket =
+        RSocketFactory.connect().setupPayload(payload).transport(transport).start();
+
+    TestDuplexConnection connection = transport.testConnection();
+    for (int i = 0; i < 100; i++) {
+      rSocket.block();
+      Collection<ByteBuf> sent = connection.getSent();
+      Assertions.assertThat(sent).hasSize(1);
+      ByteBuf setup = sent.iterator().next();
+      setup.release();
+      sent.clear();
+      Assertions.assertThat(setup.refCnt()).isEqualTo(0);
+      Assertions.assertThat(payload.refCnt()).isEqualTo(1);
+      Assertions.assertThat(payload.getDataUtf8()).isEqualTo("data");
+      Assertions.assertThat(payload.getMetadataUtf8()).isEqualTo("metadata");
+    }
   }
 
   private static class RejectingAcceptor implements ServerSocketAcceptor {
