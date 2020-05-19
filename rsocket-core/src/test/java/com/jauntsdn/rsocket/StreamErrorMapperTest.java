@@ -27,12 +27,12 @@ import io.netty.buffer.ByteBufAllocator;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-public class ErrorMapperTest {
+public class StreamErrorMapperTest {
 
   @Test
   void noSendMapper() {
     StreamErrorMappers mappers = StreamErrorMappers.create();
-    ErrorFrameMapper mapper = mappers.createErrorFrameMapper(ByteBufAllocator.DEFAULT);
+    StreamErrorMapper mapper = mappers.createErrorMapper(ByteBufAllocator.DEFAULT);
     ByteBuf errorFrame =
         mapper.streamErrorToFrame(1, StreamType.RESPONSE, new RuntimeException("error"));
     Assertions.assertThat(errorFrame).isNotNull();
@@ -49,7 +49,7 @@ public class ErrorMapperTest {
                 new TestSendMapper(
                     IllegalStateException.class,
                     StreamSendMapper.Error.application("application_error")));
-    ErrorFrameMapper mapper = mappers.createErrorFrameMapper(ByteBufAllocator.DEFAULT);
+    StreamErrorMapper mapper = mappers.createErrorMapper(ByteBufAllocator.DEFAULT);
     ByteBuf errorFrame =
         mapper.streamErrorToFrame(1, StreamType.RESPONSE, new IllegalStateException("error"));
     Assertions.assertThat(errorFrame).isNotNull();
@@ -65,7 +65,7 @@ public class ErrorMapperTest {
             .sendMapper(
                 new TestSendMapper(
                     IllegalStateException.class, StreamSendMapper.Error.cancel("cancel_error")));
-    ErrorFrameMapper mapper = mappers.createErrorFrameMapper(ByteBufAllocator.DEFAULT);
+    StreamErrorMapper mapper = mappers.createErrorMapper(ByteBufAllocator.DEFAULT);
     ByteBuf errorFrame =
         mapper.streamErrorToFrame(1, StreamType.RESPONSE, new IllegalStateException("error"));
     Assertions.assertThat(errorFrame).isNotNull();
@@ -80,7 +80,7 @@ public class ErrorMapperTest {
             .sendMapper(
                 new TestSendMapper(
                     IllegalStateException.class, StreamSendMapper.Error.reject("reject_error")));
-    ErrorFrameMapper mapper = mappers.createErrorFrameMapper(ByteBufAllocator.DEFAULT);
+    StreamErrorMapper mapper = mappers.createErrorMapper(ByteBufAllocator.DEFAULT);
     ByteBuf errorFrame =
         mapper.streamErrorToFrame(1, StreamType.RESPONSE, new IllegalStateException("error"));
     Assertions.assertThat(errorFrame).isNotNull();
@@ -95,7 +95,7 @@ public class ErrorMapperTest {
             .sendMapper(
                 new TestSendMapper(
                     IllegalStateException.class, StreamSendMapper.Error.invalid("invalid_error")));
-    ErrorFrameMapper mapper = mappers.createErrorFrameMapper(ByteBufAllocator.DEFAULT);
+    StreamErrorMapper mapper = mappers.createErrorMapper(ByteBufAllocator.DEFAULT);
     ByteBuf errorFrame =
         mapper.streamErrorToFrame(1, StreamType.RESPONSE, new IllegalStateException("error"));
     Assertions.assertThat(errorFrame).isNotNull();
@@ -106,7 +106,7 @@ public class ErrorMapperTest {
   @Test
   void sendMapperReturnsNull() {
     StreamErrorMappers mappers = StreamErrorMappers.create().sendMapper((streamType, t) -> null);
-    ErrorFrameMapper mapper = mappers.createErrorFrameMapper(ByteBufAllocator.DEFAULT);
+    StreamErrorMapper mapper = mappers.createErrorMapper(ByteBufAllocator.DEFAULT);
     ByteBuf errorFrame =
         mapper.streamErrorToFrame(1, StreamType.RESPONSE, new IllegalStateException("error"));
     Assertions.assertThat(errorFrame).isNotNull();
@@ -118,7 +118,7 @@ public class ErrorMapperTest {
   @Test
   void noReceiveMapper() {
     StreamErrorMappers mappers = StreamErrorMappers.create();
-    ErrorFrameMapper mapper = mappers.createErrorFrameMapper(ByteBufAllocator.DEFAULT);
+    StreamErrorMapper mapper = mappers.createErrorMapper(ByteBufAllocator.DEFAULT);
     ByteBuf errorFrame =
         ErrorFrameFlyweight.encode(
             ByteBufAllocator.DEFAULT, 1, ErrorCodes.APPLICATION_ERROR, "error");
@@ -130,7 +130,7 @@ public class ErrorMapperTest {
   @Test
   void receiveLeaseExhausted() {
     StreamErrorMappers mappers = StreamErrorMappers.create();
-    ErrorFrameMapper mapper = mappers.createErrorFrameMapper(ByteBufAllocator.DEFAULT);
+    StreamErrorMapper mapper = mappers.createErrorMapper(ByteBufAllocator.DEFAULT);
     ByteBuf errorFrame =
         ErrorFrameFlyweight.encode(
             ByteBufAllocator.DEFAULT, 1, ErrorCodes.REJECTED, Exceptions.LEASE_EXHAUSTED_MESSAGE);
@@ -142,7 +142,7 @@ public class ErrorMapperTest {
   @Test
   void receiveLeaseExpired() {
     StreamErrorMappers mappers = StreamErrorMappers.create();
-    ErrorFrameMapper mapper = mappers.createErrorFrameMapper(ByteBufAllocator.DEFAULT);
+    StreamErrorMapper mapper = mappers.createErrorMapper(ByteBufAllocator.DEFAULT);
     ByteBuf errorFrame =
         ErrorFrameFlyweight.encode(
             ByteBufAllocator.DEFAULT, 1, ErrorCodes.REJECTED, Exceptions.LEASE_EXPIRED_MESSAGE);
@@ -158,7 +158,7 @@ public class ErrorMapperTest {
         StreamErrorMappers.create()
             .receiveMapper(
                 new TestReceiveMapper(StreamReceiveMapper.ErrorType.APPLICATION, testException));
-    ErrorFrameMapper mapper = mappers.createErrorFrameMapper(ByteBufAllocator.DEFAULT);
+    StreamErrorMapper mapper = mappers.createErrorMapper(ByteBufAllocator.DEFAULT);
     ByteBuf errorFrame =
         ErrorFrameFlyweight.encode(
             ByteBufAllocator.DEFAULT, 1, ErrorCodes.APPLICATION_ERROR, "error");
@@ -174,7 +174,7 @@ public class ErrorMapperTest {
         StreamErrorMappers.create()
             .receiveMapper(
                 new TestReceiveMapper(StreamReceiveMapper.ErrorType.CANCELED, testException));
-    ErrorFrameMapper mapper = mappers.createErrorFrameMapper(ByteBufAllocator.DEFAULT);
+    StreamErrorMapper mapper = mappers.createErrorMapper(ByteBufAllocator.DEFAULT);
     ByteBuf errorFrame =
         ErrorFrameFlyweight.encode(ByteBufAllocator.DEFAULT, 1, ErrorCodes.CANCELED, "error");
     Throwable error = mapper.streamFrameToError(errorFrame, StreamType.RESPONSE);
@@ -189,7 +189,7 @@ public class ErrorMapperTest {
         StreamErrorMappers.create()
             .receiveMapper(
                 new TestReceiveMapper(StreamReceiveMapper.ErrorType.INVALID, testException));
-    ErrorFrameMapper mapper = mappers.createErrorFrameMapper(ByteBufAllocator.DEFAULT);
+    StreamErrorMapper mapper = mappers.createErrorMapper(ByteBufAllocator.DEFAULT);
     ByteBuf errorFrame =
         ErrorFrameFlyweight.encode(ByteBufAllocator.DEFAULT, 1, ErrorCodes.INVALID, "error");
     Throwable error = mapper.streamFrameToError(errorFrame, StreamType.RESPONSE);
@@ -201,7 +201,7 @@ public class ErrorMapperTest {
   void receiveMapperReturnsNull() {
     StreamErrorMappers mappers =
         StreamErrorMappers.create().receiveMapper((streamType, errorType, errorMessage) -> null);
-    ErrorFrameMapper mapper = mappers.createErrorFrameMapper(ByteBufAllocator.DEFAULT);
+    StreamErrorMapper mapper = mappers.createErrorMapper(ByteBufAllocator.DEFAULT);
     ByteBuf errorFrame =
         ErrorFrameFlyweight.encode(
             ByteBufAllocator.DEFAULT, 1, ErrorCodes.APPLICATION_ERROR, "error");

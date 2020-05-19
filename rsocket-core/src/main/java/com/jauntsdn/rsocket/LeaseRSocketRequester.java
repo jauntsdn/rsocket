@@ -1,5 +1,6 @@
 package com.jauntsdn.rsocket;
 
+import static com.jauntsdn.rsocket.RSocketErrorMappers.*;
 import static com.jauntsdn.rsocket.StreamErrorMappers.*;
 
 import com.jauntsdn.rsocket.frame.decoder.PayloadDecoder;
@@ -19,7 +20,8 @@ class LeaseRSocketRequester extends RSocketRequester {
       DuplexConnection connection,
       PayloadDecoder payloadDecoder,
       Consumer<Throwable> errorConsumer,
-      ErrorFrameMapper errorFrameMapper,
+      StreamErrorMapper streamErrorMapper,
+      RSocketErrorMapper rSocketErrorMapper,
       StreamIdSupplier streamIdSupplier,
       int keepAliveTickPeriod,
       int keepAliveAckTimeout,
@@ -31,7 +33,8 @@ class LeaseRSocketRequester extends RSocketRequester {
         connection,
         payloadDecoder,
         errorConsumer,
-        errorFrameMapper,
+        streamErrorMapper,
+        rSocketErrorMapper,
         streamIdSupplier,
         keepAliveTickPeriod,
         keepAliveAckTimeout,

@@ -1,5 +1,6 @@
 package com.jauntsdn.rsocket;
 
+import static com.jauntsdn.rsocket.RSocketErrorMappers.*;
 import static com.jauntsdn.rsocket.StreamErrorMappers.*;
 
 import com.jauntsdn.rsocket.frame.decoder.PayloadDecoder;
@@ -22,14 +23,15 @@ interface RSocketsFactory {
       RSocket requestHandler,
       PayloadDecoder payloadDecoder,
       Consumer<Throwable> errorConsumer,
-      ErrorFrameMapper errorFrameMapper);
+      StreamErrorMapper streamErrorMapper);
 
   RSocketRequester createRequester(
       ByteBufAllocator allocator,
       DuplexConnection connection,
       PayloadDecoder payloadDecoder,
       Consumer<Throwable> errorConsumer,
-      ErrorFrameMapper errorFrameMapper,
+      StreamErrorMapper streamErrorMapper,
+      RSocketErrorMapper rSocketErrorMapper,
       StreamIdSupplier streamIdSupplier,
       int keepAliveTickPeriod,
       int keepAliveAckTimeout,
@@ -74,7 +76,7 @@ interface RSocketsFactory {
         RSocket requestHandler,
         PayloadDecoder payloadDecoder,
         Consumer<Throwable> errorConsumer,
-        ErrorFrameMapper errorFrameMapper) {
+        StreamErrorMapper streamErrorMapper) {
 
       ResponderLeaseHandler leaseHandler =
           new ResponderLeaseHandler.Impl<>(
@@ -86,7 +88,7 @@ interface RSocketsFactory {
           requestHandler,
           payloadDecoder,
           errorConsumer,
-          errorFrameMapper,
+          streamErrorMapper,
           leaseHandler);
     }
 
@@ -96,7 +98,8 @@ interface RSocketsFactory {
         DuplexConnection connection,
         PayloadDecoder payloadDecoder,
         Consumer<Throwable> errorConsumer,
-        ErrorFrameMapper errorFrameMapper,
+        StreamErrorMapper streamErrorMapper,
+        RSocketErrorMapper rSocketErrorMapper,
         StreamIdSupplier streamIdSupplier,
         int keepAliveTickPeriod,
         int keepAliveAckTimeout,
@@ -108,7 +111,8 @@ interface RSocketsFactory {
           connection,
           payloadDecoder,
           errorConsumer,
-          errorFrameMapper,
+          streamErrorMapper,
+          rSocketErrorMapper,
           streamIdSupplier,
           keepAliveTickPeriod,
           keepAliveAckTimeout,
@@ -127,10 +131,10 @@ interface RSocketsFactory {
         RSocket requestHandler,
         PayloadDecoder payloadDecoder,
         Consumer<Throwable> errorConsumer,
-        ErrorFrameMapper errorFrameMapper) {
+        StreamErrorMapper streamErrorMapper) {
 
       return new RSocketResponder(
-          allocator, connection, requestHandler, payloadDecoder, errorConsumer, errorFrameMapper);
+          allocator, connection, requestHandler, payloadDecoder, errorConsumer, streamErrorMapper);
     }
 
     @Override
@@ -139,7 +143,8 @@ interface RSocketsFactory {
         DuplexConnection connection,
         PayloadDecoder payloadDecoder,
         Consumer<Throwable> errorConsumer,
-        ErrorFrameMapper errorFrameMapper,
+        StreamErrorMapper streamErrorMapper,
+        RSocketErrorMapper rSocketErrorMapper,
         StreamIdSupplier streamIdSupplier,
         int keepAliveTickPeriod,
         int keepAliveAckTimeout,
@@ -149,7 +154,8 @@ interface RSocketsFactory {
           connection,
           payloadDecoder,
           errorConsumer,
-          errorFrameMapper,
+          streamErrorMapper,
+          rSocketErrorMapper,
           streamIdSupplier,
           keepAliveTickPeriod,
           keepAliveAckTimeout,

@@ -16,11 +16,11 @@
 
 package com.jauntsdn.rsocket;
 
+import static com.jauntsdn.rsocket.RSocketErrorMappers.*;
 import static com.jauntsdn.rsocket.StreamErrorMappers.*;
 import static com.jauntsdn.rsocket.keepalive.KeepAlive.ClientKeepAlive;
 
 import com.jauntsdn.rsocket.exceptions.ConnectionErrorException;
-import com.jauntsdn.rsocket.exceptions.Exceptions;
 import com.jauntsdn.rsocket.frame.*;
 import com.jauntsdn.rsocket.frame.decoder.PayloadDecoder;
 import com.jauntsdn.rsocket.internal.SynchronizedIntObjectHashMap;
@@ -34,7 +34,6 @@ import io.netty.util.ReferenceCountUtil;
 import io.netty.util.collection.IntObjectMap;
 import java.nio.channels.ClosedChannelException;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
 import javax.annotation.Nonnull;
@@ -49,10 +48,8 @@ import reactor.core.scheduler.Scheduler;
  * Requester Side of a RSocket socket. Sends {@link ByteBuf}s to a {@link RSocketResponder} of peer
  */
 class RSocketRequester implements RSocket {
-  private static final AtomicReferenceFieldUpdater<RSocketRequester, Throwable> TERMINATION_ERROR =
-      AtomicReferenceFieldUpdater.newUpdater(
-          RSocketRequester.class, Throwable.class, "terminationError");
-  private static final Exception CLOSED_CHANNEL_EXCEPTION = new ClosedChannelException();
+  private static final ClosedChannelException CLOSED_CHANNEL_EXCEPTION =
+      new ClosedChannelException();
 
   static {
     CLOSED_CHANNEL_EXCEPTION.setStackTrace(new StackTraceElement[0]);
@@ -61,7 +58,8 @@ class RSocketRequester implements RSocket {
   private final DuplexConnection connection;
   private final PayloadDecoder payloadDecoder;
   private final Consumer<Throwable> errorConsumer;
-  private final ErrorFrameMapper errorFrameMapper;
+  private final StreamErrorMapper streamErrorMapper;
+  private final RSocketErrorMapper rSocketErrorMapper;
   private final StreamIdSupplier streamIdSupplier;
   private final IntObjectMap<Subscription> senders;
   private final IntObjectMap<Processor<Payload, Payload>> receivers;
@@ -77,7 +75,8 @@ class RSocketRequester implements RSocket {
       DuplexConnection connection,
       PayloadDecoder payloadDecoder,
       Consumer<Throwable> errorConsumer,
-      ErrorFrameMapper errorFrameMapper,
+      StreamErrorMapper streamErrorMapper,
+      RSocketErrorMapper rSocketErrorMapper,
       StreamIdSupplier streamIdSupplier,
       int keepAliveTickPeriod,
       int keepAliveAckTimeout,
@@ -86,7 +85,8 @@ class RSocketRequester implements RSocket {
     this.connection = connection;
     this.payloadDecoder = payloadDecoder;
     this.errorConsumer = errorConsumer;
-    this.errorFrameMapper = errorFrameMapper;
+    this.streamErrorMapper = streamErrorMapper;
+    this.rSocketErrorMapper = rSocketErrorMapper;
     this.streamIdSupplier = streamIdSupplier;
     this.senders = new SynchronizedIntObjectHashMap<>();
     this.receivers = new SynchronizedIntObjectHashMap<>();
@@ -97,7 +97,8 @@ class RSocketRequester implements RSocket {
 
     connection
         .onClose()
-        .doFinally(signalType -> tryTerminate(CLOSED_CHANNEL_EXCEPTION))
+        .doFinally(
+            signalType -> tryTerminate(TerminationSignal.connectionClose(CLOSED_CHANNEL_EXCEPTION)))
         .subscribe(null, errorConsumer);
     connection.send(sendProcessor).subscribe(null, this::handleSendProcessorError);
 
@@ -118,7 +119,8 @@ class RSocketRequester implements RSocket {
                 keepAliveFrame -> sendProcessor.onNext(keepAliveFrame));
     this.keepAlive = keepAlive;
     this.keepAliveFramesAcceptor =
-        keepAliveHandler.start(keepAlive, () -> tryTerminate(keepAliveAckTimeout));
+        keepAliveHandler.start(
+            keepAlive, () -> tryTerminate(TerminationSignal.keepAliveTimeout(keepAliveAckTimeout)));
   }
 
   @Override
@@ -159,6 +161,14 @@ class RSocketRequester implements RSocket {
   @Override
   public void dispose() {
     connection.dispose();
+  }
+
+  @Override
+  public void dispose(String errorMessage, boolean isGraceful) {
+    if (terminationError == null) {
+      transportScheduler.schedule(
+          () -> tryTerminate(TerminationSignal.rSocketCloseLocal(errorMessage)));
+    }
   }
 
   @Override
@@ -254,9 +264,9 @@ class RSocketRequester implements RSocket {
                   return;
                 }
 
-                Throwable err = terminationError;
-                if (err != null) {
-                  receiver.onError(err);
+                Throwable e = terminationError;
+                if (e != null) {
+                  receiver.onError(e);
                   payload.release();
                   return;
                 }
@@ -313,9 +323,9 @@ class RSocketRequester implements RSocket {
                   return;
                 }
 
-                Throwable err = terminationError;
-                if (err != null) {
-                  receiver.onError(err);
+                Throwable e = terminationError;
+                if (e != null) {
+                  receiver.onError(e);
                   if (!isRequestSent) {
                     payload.release();
                   }
@@ -404,9 +414,9 @@ class RSocketRequester implements RSocket {
                                 return;
                               }
 
-                              Throwable err = terminationError;
-                              if (err != null) {
-                                receiver.onError(err);
+                              Throwable e = terminationError;
+                              if (e != null) {
+                                receiver.onError(e);
                                 payload.release();
                                 return;
                               }
@@ -454,7 +464,7 @@ class RSocketRequester implements RSocket {
                               int streamId = stream.getId();
                               if (streamId > 0) {
                                 sendProcessor.onNext(
-                                    errorFrameMapper.streamErrorToFrame(
+                                    streamErrorMapper.streamErrorToFrame(
                                         streamId, StreamType.REQUEST, t));
                               }
                               // todo signal error wrapping request error
@@ -486,10 +496,10 @@ class RSocketRequester implements RSocket {
   }
 
   private Mono<Void> handleMetadataPush(Payload payload) {
-    Throwable err = this.terminationError;
-    if (err != null) {
+    Throwable e = this.terminationError;
+    if (e != null) {
       payload.release();
-      return Mono.error(err);
+      return Mono.error(e);
     }
 
     return Mono.create(
@@ -541,7 +551,7 @@ class RSocketRequester implements RSocket {
   private void handleZeroFrame(FrameType type, ByteBuf frame) {
     switch (type) {
       case ERROR:
-        tryTerminate(frame);
+        tryTerminate(TerminationSignal.rSocketCloseRemote(frame));
         break;
       case LEASE:
         handleLeaseFrame(frame);
@@ -562,7 +572,7 @@ class RSocketRequester implements RSocket {
     if (receiver != null) {
       switch (type) {
         case ERROR:
-          receiver.onError(errorFrameMapper.streamFrameToError(frame, StreamType.RESPONSE));
+          receiver.onError(streamErrorMapper.streamFrameToError(frame, StreamType.RESPONSE));
           receivers.remove(streamId);
           break;
         case NEXT_COMPLETE:
@@ -600,23 +610,30 @@ class RSocketRequester implements RSocket {
     }
   }
 
-  /*error is (int (KeepAlive timeout) | ClosedChannelException (dispose) | Error frame (0 error)) */
-  /*no race because executed on transport scheduler */
-  private void tryTerminate(Object error) {
+  private void tryTerminate(TerminationSignal signal) {
     if (terminationError == null) {
       Exception e;
-      if (error instanceof ClosedChannelException) {
-        e = (Exception) error;
-      } else if (error instanceof Integer) {
-        Integer keepAliveTimeout = (Integer) error;
-        e =
-            new ConnectionErrorException(
-                String.format("No keep-alive acks for %d ms", keepAliveTimeout));
-      } else if (error instanceof ByteBuf) {
-        ByteBuf errorFrame = (ByteBuf) error;
-        e = Exceptions.from(errorFrame);
-      } else {
-        e = new IllegalStateException("Unknown termination token: " + error);
+      switch (signal.type()) {
+        case CONNECTION_CLOSE:
+          e = signal.value();
+          break;
+        case KEEP_ALIVE_TIMEOUT:
+          e =
+              new ConnectionErrorException(
+                  String.format("No keep-alive acks for %d ms", signal.<Integer>value()));
+          break;
+        case RSOCKET_CLOSE_REMOTE:
+          e = rSocketErrorMapper.frameToRSocketError(signal.value());
+          break;
+        case RSOCKET_CLOSE_LOCAL:
+          String errorMessage = signal.value();
+          ByteBuf connectionErrorFrame =
+              rSocketErrorMapper.rSocketErrorToFrame(ErrorCodes.CONNECTION_ERROR, errorMessage);
+          sendProcessor.onNext(connectionErrorFrame);
+          e = new ConnectionErrorException(errorMessage);
+          break;
+        default:
+          e = new IllegalStateException("Unknown termination signal: " + signal.type());
       }
       this.terminationError = e;
       terminate(e);
@@ -699,6 +716,48 @@ class RSocketRequester implements RSocket {
 
     public void setSender(Subscription sender) {
       this.sender = sender;
+    }
+  }
+
+  private static class TerminationSignal {
+    private final Object value;
+    private final Type type;
+
+    private TerminationSignal(Object value, Type type) {
+      this.value = value;
+      this.type = type;
+    }
+
+    public static TerminationSignal keepAliveTimeout(int timeout) {
+      return new TerminationSignal(timeout, Type.KEEP_ALIVE_TIMEOUT);
+    }
+
+    public static TerminationSignal connectionClose(ClosedChannelException e) {
+      return new TerminationSignal(e, Type.CONNECTION_CLOSE);
+    }
+
+    public static TerminationSignal rSocketCloseRemote(ByteBuf connectionErrorFrame) {
+      return new TerminationSignal(connectionErrorFrame, Type.RSOCKET_CLOSE_REMOTE);
+    }
+
+    public static TerminationSignal rSocketCloseLocal(String errorMessage) {
+      return new TerminationSignal(errorMessage, Type.RSOCKET_CLOSE_LOCAL);
+    }
+
+    @SuppressWarnings("unchecked")
+    public <T> T value() {
+      return (T) value;
+    }
+
+    public Type type() {
+      return type;
+    }
+
+    enum Type {
+      KEEP_ALIVE_TIMEOUT,
+      CONNECTION_CLOSE,
+      RSOCKET_CLOSE_REMOTE,
+      RSOCKET_CLOSE_LOCAL
     }
   }
 }
