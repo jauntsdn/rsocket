@@ -42,7 +42,7 @@ public class GracefulDisposeTest {
     rSocket.onClose().as(StepVerifier::create).expectComplete().verify(Duration.ofSeconds(1));
 
     Assertions.assertThat(System.currentTimeMillis() - start)
-        .isCloseTo(drainTimeout, Offset.offset(50L));
+        .isCloseTo(drainTimeout, Offset.offset(100L));
 
     rSocket
         .requestResponse(DefaultPayload.create("test"))
