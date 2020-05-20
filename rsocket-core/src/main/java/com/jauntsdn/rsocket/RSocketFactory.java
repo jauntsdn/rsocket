@@ -123,6 +123,9 @@ public class RSocketFactory {
     private ByteBufAllocator allocator = ByteBufAllocator.DEFAULT;
     private boolean acceptFragmentedFrames;
     private int frameSizeLimit = FrameLengthFlyweight.FRAME_LENGTH_MASK;
+    private final ClientGracefulDispose gracefulDispose =
+        ClientGracefulDispose.create().drainTimeout(Duration.ofSeconds(600));
+    private ClientGracefulDispose.Configurer gracefulDisposeConfigurer = gracefulDispose -> {};
 
     public ClientRSocketFactory byteBufAllocator(ByteBufAllocator allocator) {
       Objects.requireNonNull(allocator);
@@ -312,6 +315,17 @@ public class RSocketFactory {
       return this;
     }
 
+    /**
+     * @param gracefulDisposeConfigurer configures graceful dispose of RSocket requester
+     * @return this {@link ClientRSocketFactory} instance
+     */
+    public ClientRSocketFactory gracefulDispose(
+        ClientGracefulDispose.Configurer gracefulDisposeConfigurer) {
+      this.gracefulDisposeConfigurer =
+          Objects.requireNonNull(gracefulDisposeConfigurer, "gracefulDisposeConfigurer");
+      return this;
+    }
+
     private class StartClient implements Start<RSocket> {
       private final Supplier<ClientTransport> transportClient;
       private final int keepAliveTickPeriod;
@@ -376,7 +390,10 @@ public class RSocketFactory {
                   final int keepAliveTimeout = this.keepAliveTimeout;
                   final int keepAliveTickPeriod = this.keepAliveTickPeriod;
 
-                  RSocket rSocketRequester =
+                  ClientGracefulDispose gracefulDispose = ClientRSocketFactory.this.gracefulDispose;
+                  gracefulDisposeConfigurer.configure(gracefulDispose);
+
+                  RSocketRequester gracefullyDisposableRequester =
                       rSocketsFactory.createRequester(
                           allocator,
                           multiplexer.asClientConnection(),
@@ -387,7 +404,10 @@ public class RSocketFactory {
                           StreamIdSupplier.clientSupplier(),
                           keepAliveTickPeriod,
                           keepAliveTimeout,
-                          keepAliveHandler);
+                          keepAliveHandler,
+                          gracefulDispose.drainTimeout());
+
+                  RSocket rSocketRequester = gracefullyDisposableRequester;
 
                   if (multiSubscriberRequester) {
                     rSocketRequester = new MultiSubscriberRSocket(rSocketRequester);
@@ -403,7 +423,7 @@ public class RSocketFactory {
 
                   RSocket wrappedRSocketHandler = interceptors.interceptHandler(rSocketHandler);
 
-                  RSocket rSocketResponder =
+                  RSocketResponder rSocketResponder =
                       rSocketsFactory.createResponder(
                           allocator,
                           multiplexer.asServerConnection(),
@@ -411,6 +431,9 @@ public class RSocketFactory {
                           payloadDecoder,
                           errorConsumer,
                           streamErrorMapper);
+
+                  gracefullyDisposableRequester.onGracefulDispose(
+                      rSocketResponder::gracefulDispose);
 
                   return wrappedConnection.sendOne(setupFrame).thenReturn(wrappedRSocketRequester);
                 });
@@ -492,6 +515,9 @@ public class RSocketFactory {
     private boolean resumeCleanupStoreOnKeepAlive;
     private boolean acceptFragmentedFrames;
     private int frameSizeLimit = FrameLengthFlyweight.FRAME_LENGTH_MASK;
+    private final ServerGracefulDispose gracefulDispose =
+        ServerGracefulDispose.create().drainTimeout(Duration.ofSeconds(600));
+    private ServerGracefulDispose.Configurer gracefulDisposeConfigurer = gracefulDispose -> {};
 
     private ServerRSocketFactory() {}
 
@@ -628,7 +654,18 @@ public class RSocketFactory {
       return this;
     }
 
-    private class ServerStart<T extends Closeable> implements Start<T> {
+    /**
+     * @param gracefulDisposeConfigurer configures graceful dispose of this server
+     * @return this {@link ServerRSocketFactory} instance
+     */
+    public ServerRSocketFactory gracefulDispose(
+        ServerGracefulDispose.Configurer gracefulDisposeConfigurer) {
+      this.gracefulDisposeConfigurer =
+          Objects.requireNonNull(gracefulDisposeConfigurer, "gracefulDisposeConfigurer");
+      return this;
+    }
+
+    class ServerStart<T extends Closeable> implements Start<T> {
       private final Supplier<ServerTransport<T>> transportServer;
       private final StreamErrorMapper streamErrorMapper =
           streamErrorMappers.createErrorMapper(allocator);
@@ -636,6 +673,8 @@ public class RSocketFactory {
           rSocketErrorMappers.createErrorMapper(allocator);
 
       public ServerStart(Supplier<ServerTransport<T>> transportServer) {
+        ServerGracefulDispose gracefulDispose = ServerRSocketFactory.this.gracefulDispose;
+        gracefulDisposeConfigurer.configure(gracefulDispose);
         this.transportServer = transportServer;
       }
 
@@ -643,11 +682,14 @@ public class RSocketFactory {
       public Mono<T> start() {
         return Mono.defer(
             new Supplier<Mono<T>>() {
-
-              ServerSetup serverSetup = serverSetup();
+              final ServerSetup serverSetup = serverSetup();
+              final ServerGracefulDisposer<T> serverGracefulDisposer =
+                  ServerGracefulDisposer.create(gracefulDispose);
 
               @Override
               public Mono<T> get() {
+                serverGracefulDisposer.start();
+
                 return transportServer
                     .get()
                     .start(
@@ -670,10 +712,23 @@ public class RSocketFactory {
                               .asSetupConnection()
                               .receive()
                               .next()
-                              .flatMap(startFrame -> accept(startFrame, multiplexer, interceptors));
+                              .flatMap(
+                                  startFrame -> {
+                                    serverGracefulDisposer.beforeAccept();
+                                    Mono<Void> a = accept(startFrame, multiplexer, interceptors);
+                                    serverGracefulDisposer.afterAccept();
+                                    return a;
+                                  });
                         },
                         frameSizeLimit)
-                    .doOnNext(c -> c.onClose().doFinally(v -> serverSetup.dispose()).subscribe());
+                    .doOnNext(
+                        c -> {
+                          serverGracefulDisposer
+                              .ofServer(c)
+                              .onClose()
+                              .doFinally(v -> serverSetup.dispose())
+                              .subscribe();
+                        });
               }
 
               private Mono<Void> accept(
@@ -695,6 +750,15 @@ public class RSocketFactory {
                   ByteBuf setupFrame,
                   ClientServerInputMultiplexer multiplexer,
                   Interceptors interceptors) {
+                String reject = serverGracefulDisposer.tryReject();
+                if (reject != null) {
+                  return sendError(multiplexer, ErrorCodes.CONNECTION_CLOSE, reject)
+                      .doFinally(
+                          signalType -> {
+                            setupFrame.release();
+                            multiplexer.dispose();
+                          });
+                }
 
                 if (!SetupFrameFlyweight.isSupportedVersion(setupFrame)) {
                   return sendError(
@@ -735,7 +799,7 @@ public class RSocketFactory {
                               serverConnection.scheduler(),
                               leaseConfigurer);
 
-                      RSocket rSocketRequester =
+                      RSocketRequester gracefullyDisposableRequester =
                           rSocketsFactory.createRequester(
                               allocator,
                               serverConnection,
@@ -746,8 +810,10 @@ public class RSocketFactory {
                               StreamIdSupplier.serverSupplier(),
                               0,
                               setupPayload.keepAliveMaxLifetime(),
-                              keepAliveHandler);
+                              keepAliveHandler,
+                              gracefulDispose.drainTimeout());
 
+                      RSocket rSocketRequester = gracefullyDisposableRequester;
                       if (multiSubscriberRequester) {
                         rSocketRequester = new MultiSubscriberRSocket(rSocketRequester);
                       }
@@ -769,7 +835,7 @@ public class RSocketFactory {
                                 RSocket wrappedRSocketHandler =
                                     interceptors.interceptHandler(rSocketHandler);
 
-                                RSocket rSocketResponder =
+                                RSocketResponder rSocketResponder =
                                     rSocketsFactory.createResponder(
                                         allocator,
                                         wrappedMultiplexer.asClientConnection(),
@@ -777,6 +843,11 @@ public class RSocketFactory {
                                         payloadDecoder,
                                         errorConsumer,
                                         streamErrorMapper);
+
+                                gracefullyDisposableRequester.onGracefulDispose(
+                                    rSocketResponder::gracefulDispose);
+
+                                serverGracefulDisposer.onConnect(gracefullyDisposableRequester);
                               })
                           .doFinally(signalType -> setupPayload.release())
                           .then();
@@ -787,6 +858,16 @@ public class RSocketFactory {
                   ServerSetup serverSetup,
                   ByteBuf resumeFrame,
                   ClientServerInputMultiplexer multiplexer) {
+
+                String reject = serverGracefulDisposer.tryReject();
+                if (reject != null) {
+                  return sendError(multiplexer, ErrorCodes.REJECTED_RESUME, reject)
+                      .doFinally(
+                          signalType -> {
+                            resumeFrame.release();
+                            multiplexer.dispose();
+                          });
+                }
                 return serverSetup.acceptRSocketResume(resumeFrame, multiplexer);
               }
             });
@@ -816,11 +897,13 @@ public class RSocketFactory {
                 });
       }
 
-      private Mono<Void> sendError(
+      Mono<Void> sendError(
           ClientServerInputMultiplexer multiplexer, int errorCode, String errorMessage) {
         return multiplexer
             .asSetupConnection()
-            .sendOne(rSocketErrorMapper.rSocketErrorToFrame(errorCode, errorMessage))
+            .sendOne(
+                ErrorFrameFlyweight.encode(
+                    allocator, 0, errorCode, rSocketErrorMapper.sendError(errorCode, errorMessage)))
             .onErrorResume(err -> Mono.empty());
       }
 

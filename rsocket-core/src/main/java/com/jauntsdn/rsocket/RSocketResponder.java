@@ -471,4 +471,6 @@ class RSocketResponder implements ResponderRSocket {
       senders.remove(streamId);
     }
   }
+
+  void gracefulDispose(String msg) {}
 }

@@ -53,21 +53,30 @@ public final class RSocketErrorMappers {
       this.rSocketReceiveMapper = rSocketReceiveMapper;
     }
 
-    public ByteBuf rSocketErrorToFrame(int errorCode, String errorMessage) {
+    public ByteBuf sendErrorFrame(int errorCode, String errorMessage) {
+      return ErrorFrameFlyweight.encode(
+          allocator, 0, errorCode, sendError(errorCode, errorMessage));
+    }
+
+    public String sendError(int errorCode, String errorMessage) {
       RSocketSendMapper mapper = this.rSocketSendMapper;
       if (mapper != null) {
         String msg = mapper.map(errorCode, errorMessage);
         if (msg != null) {
-          errorMessage = msg;
+          return msg;
         }
       }
-      return ErrorFrameFlyweight.encode(allocator, 0, errorCode, errorMessage);
+      return errorMessage;
     }
 
-    public Exception frameToRSocketError(ByteBuf errorFrame) {
-      RSocketReceiveMapper mapper = this.rSocketReceiveMapper;
+    public Exception receiveErrorFrame(ByteBuf errorFrame) {
       int errorCode = ErrorFrameFlyweight.errorCode(errorFrame);
       String errorMessage = ErrorFrameFlyweight.dataUtf8(errorFrame);
+      return receiveError(errorCode, errorMessage);
+    }
+
+    public Exception receiveError(int errorCode, String errorMessage) {
+      RSocketReceiveMapper mapper = this.rSocketReceiveMapper;
       if (mapper != null) {
         Exception e = mapper.map(errorCode, errorMessage);
         if (e != null) {

@@ -64,7 +64,8 @@ public class KeepAliveTest {
             StreamIdSupplier.clientSupplier(),
             tickPeriod,
             timeout,
-            new DefaultKeepAliveHandler(connection));
+            new DefaultKeepAliveHandler(connection),
+            Duration.ofSeconds(300));
     return new RSocketState(rSocket, errors, connection);
   }
 
@@ -90,7 +91,8 @@ public class KeepAliveTest {
             StreamIdSupplier.clientSupplier(),
             tickPeriod,
             timeout,
-            new ResumableKeepAliveHandler(resumableConnection));
+            new ResumableKeepAliveHandler(resumableConnection),
+            Duration.ofSeconds(300));
     return new ResumableRSocketState(rSocket, errors, connection, resumableConnection);
   }
 

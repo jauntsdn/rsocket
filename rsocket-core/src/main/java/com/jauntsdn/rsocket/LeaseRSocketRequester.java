@@ -8,6 +8,7 @@ import com.jauntsdn.rsocket.keepalive.KeepAliveHandler;
 import com.jauntsdn.rsocket.lease.RequesterLeaseHandler;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
+import java.time.Duration;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
 import javax.annotation.Nullable;
@@ -26,6 +27,7 @@ class LeaseRSocketRequester extends RSocketRequester {
       int keepAliveTickPeriod,
       int keepAliveAckTimeout,
       KeepAliveHandler keepAliveHandler,
+      Duration gracefulDisposeTimeout,
       RequesterLeaseHandler leaseHandler,
       @Nullable LongConsumer onRtt) {
     super(
@@ -38,7 +40,8 @@ class LeaseRSocketRequester extends RSocketRequester {
         streamIdSupplier,
         keepAliveTickPeriod,
         keepAliveAckTimeout,
-        keepAliveHandler);
+        keepAliveHandler,
+        gracefulDisposeTimeout);
     this.leaseHandler = leaseHandler;
     keepAlive().onRtt(onRtt);
   }

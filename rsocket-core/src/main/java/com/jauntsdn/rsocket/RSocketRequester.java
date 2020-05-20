@@ -20,6 +20,7 @@ import static com.jauntsdn.rsocket.RSocketErrorMappers.*;
 import static com.jauntsdn.rsocket.StreamErrorMappers.*;
 import static com.jauntsdn.rsocket.keepalive.KeepAlive.ClientKeepAlive;
 
+import com.jauntsdn.rsocket.exceptions.ConnectionCloseException;
 import com.jauntsdn.rsocket.exceptions.ConnectionErrorException;
 import com.jauntsdn.rsocket.frame.*;
 import com.jauntsdn.rsocket.frame.decoder.PayloadDecoder;
@@ -33,7 +34,9 @@ import io.netty.buffer.ByteBufAllocator;
 import io.netty.util.ReferenceCountUtil;
 import io.netty.util.collection.IntObjectMap;
 import java.nio.channels.ClosedChannelException;
+import java.time.Duration;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
 import javax.annotation.Nonnull;
@@ -41,6 +44,10 @@ import org.reactivestreams.Processor;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import reactor.core.Disposable;
+import reactor.core.Disposables;
 import reactor.core.publisher.*;
 import reactor.core.scheduler.Scheduler;
 
@@ -48,8 +55,10 @@ import reactor.core.scheduler.Scheduler;
  * Requester Side of a RSocket socket. Sends {@link ByteBuf}s to a {@link RSocketResponder} of peer
  */
 class RSocketRequester implements RSocket {
+  private static final Logger logger = LoggerFactory.getLogger(RSocketRequester.class);
   private static final ClosedChannelException CLOSED_CHANNEL_EXCEPTION =
       new ClosedChannelException();
+  private static final String GRACEFUL_DISPOSE_MESSAGE = "graceful dispose";
 
   static {
     CLOSED_CHANNEL_EXCEPTION.setStackTrace(new StackTraceElement[0]);
@@ -61,14 +70,21 @@ class RSocketRequester implements RSocket {
   private final StreamErrorMapper streamErrorMapper;
   private final RSocketErrorMapper rSocketErrorMapper;
   private final StreamIdSupplier streamIdSupplier;
+  private final Duration gracefulDisposeTimeout;
   private final IntObjectMap<Subscription> senders;
   private final IntObjectMap<Processor<Payload, Payload>> receivers;
   private final UnboundedProcessor<ByteBuf> sendProcessor;
   private final ByteBufAllocator allocator;
   private final Consumer<ByteBuf> keepAliveFramesAcceptor;
   private final Scheduler transportScheduler;
-  private volatile Throwable terminationError;
   private final KeepAlive keepAlive;
+
+  private volatile Throwable terminationError;
+  private volatile boolean isGracefulDisposedRemote;
+  private String gracefulDisposeRemoteMessage;
+  private volatile boolean isGracefulDisposedLocal;
+  private Consumer<String> onGracefulDisposeLocal;
+  private Disposable gracefulDisposeLocalTimeout = Disposables.disposed();
 
   RSocketRequester(
       ByteBufAllocator allocator,
@@ -80,7 +96,8 @@ class RSocketRequester implements RSocket {
       StreamIdSupplier streamIdSupplier,
       int keepAliveTickPeriod,
       int keepAliveAckTimeout,
-      KeepAliveHandler keepAliveHandler) {
+      KeepAliveHandler keepAliveHandler,
+      Duration gracefulDisposeTimeout) {
     this.allocator = allocator;
     this.connection = connection;
     this.payloadDecoder = payloadDecoder;
@@ -88,6 +105,7 @@ class RSocketRequester implements RSocket {
     this.streamErrorMapper = streamErrorMapper;
     this.rSocketErrorMapper = rSocketErrorMapper;
     this.streamIdSupplier = streamIdSupplier;
+    this.gracefulDisposeTimeout = gracefulDisposeTimeout;
     this.senders = new SynchronizedIntObjectHashMap<>();
     this.receivers = new SynchronizedIntObjectHashMap<>();
     this.transportScheduler = connection.scheduler();
@@ -97,9 +115,9 @@ class RSocketRequester implements RSocket {
 
     connection
         .onClose()
-        .doFinally(
-            signalType -> tryTerminate(TerminationSignal.connectionClose(CLOSED_CHANNEL_EXCEPTION)))
+        .doFinally(signalType -> handleConnectionClose())
         .subscribe(null, errorConsumer);
+
     connection.send(sendProcessor).subscribe(null, this::handleSendProcessorError);
 
     connection.receive().subscribe(this::handleIncomingFrames, errorConsumer);
@@ -150,7 +168,8 @@ class RSocketRequester implements RSocket {
 
   @Override
   public double availability() {
-    return connection.availability();
+    double rSocketAvailability = isGracefulDisposedRemote ? 0.0 : 1.0;
+    return Math.min(rSocketAvailability, connection.availability());
   }
 
   @Override
@@ -167,13 +186,24 @@ class RSocketRequester implements RSocket {
   public void dispose(String errorMessage, boolean isGraceful) {
     if (terminationError == null) {
       transportScheduler.schedule(
-          () -> tryTerminate(TerminationSignal.rSocketCloseLocal(errorMessage)));
+          () -> {
+            if (isGraceful) {
+              if (!isGracefulDisposedLocal) {
+                isGracefulDisposedLocal = true;
+                String msg = errorMessage.isEmpty() ? GRACEFUL_DISPOSE_MESSAGE : errorMessage;
+                gracefulDispose(msg);
+                onGracefulDisposeLocal.accept(msg);
+              }
+            } else {
+              tryTerminate(TerminationSignal.errorLocal(errorMessage));
+            }
+          });
     }
   }
 
   @Override
   public boolean isDisposed() {
-    return connection.isDisposed();
+    return connection.isDisposed() || isGracefulDisposedLocal || isGracefulDisposedRemote;
   }
 
   @Override
@@ -184,8 +214,6 @@ class RSocketRequester implements RSocket {
   Throwable checkAllowed() {
     return terminationError;
   }
-
-  void handleLeaseFrame(ByteBuf frame) {}
 
   KeepAlive keepAlive() {
     return keepAlive;
@@ -551,7 +579,7 @@ class RSocketRequester implements RSocket {
   private void handleZeroFrame(FrameType type, ByteBuf frame) {
     switch (type) {
       case ERROR:
-        tryTerminate(TerminationSignal.rSocketCloseRemote(frame));
+        handleZeroErrorFrame(frame);
         break;
       case LEASE:
         handleLeaseFrame(frame);
@@ -566,6 +594,16 @@ class RSocketRequester implements RSocket {
                 "Client received supported frame on stream 0: " + frame.toString()));
     }
   }
+
+  private void handleZeroErrorFrame(ByteBuf frame) {
+    if (ErrorFrameFlyweight.errorCode(frame) == ErrorCodes.CONNECTION_CLOSE) {
+      gracefulDisposeRemote(ErrorFrameFlyweight.dataUtf8(frame));
+    } else {
+      tryTerminate(TerminationSignal.errorRemote(frame));
+    }
+  }
+
+  void handleLeaseFrame(ByteBuf frame) {}
 
   private void handleStreamFrame(int streamId, FrameType type, ByteBuf frame) {
     Subscriber<Payload> receiver = receivers.get(streamId);
@@ -612,24 +650,32 @@ class RSocketRequester implements RSocket {
 
   private void tryTerminate(TerminationSignal signal) {
     if (terminationError == null) {
+      gracefulDisposeLocalTimeout.dispose();
+
       Exception e;
       switch (signal.type()) {
-        case CONNECTION_CLOSE:
+        case CLOSE:
           e = signal.value();
+          break;
+        case GRACEFUL_CLOSE_REMOTE:
+          e = rSocketErrorMapper.receiveError(ErrorCodes.CONNECTION_CLOSE, signal.value());
+          break;
+        case GRACEFUL_CLOSE_LOCAL:
+          e = new ConnectionCloseException(signal.value());
           break;
         case KEEP_ALIVE_TIMEOUT:
           e =
               new ConnectionErrorException(
                   String.format("No keep-alive acks for %d ms", signal.<Integer>value()));
           break;
-        case RSOCKET_CLOSE_REMOTE:
-          e = rSocketErrorMapper.frameToRSocketError(signal.value());
+        case ERROR_REMOTE:
+          e = rSocketErrorMapper.receiveErrorFrame(signal.value());
           break;
-        case RSOCKET_CLOSE_LOCAL:
+        case ERROR_LOCAL:
           String errorMessage = signal.value();
-          ByteBuf connectionErrorFrame =
-              rSocketErrorMapper.rSocketErrorToFrame(ErrorCodes.CONNECTION_ERROR, errorMessage);
-          sendProcessor.onNext(connectionErrorFrame);
+          String msg = rSocketErrorMapper.sendError(ErrorCodes.CONNECTION_ERROR, errorMessage);
+          sendProcessor.onNext(
+              ErrorFrameFlyweight.encode(allocator, 0, ErrorCodes.CONNECTION_ERROR, msg));
           e = new ConnectionErrorException(errorMessage);
           break;
         default:
@@ -693,8 +739,39 @@ class RSocketRequester implements RSocket {
     }
   }
 
+  private void handleConnectionClose() {
+    String msg = this.gracefulDisposeRemoteMessage;
+    tryTerminate(
+        msg != null
+            ? TerminationSignal.gracefulCloseRemote(msg)
+            : TerminationSignal.close(CLOSED_CHANNEL_EXCEPTION));
+  }
+
   private void handleSendProcessorError(Throwable t) {
     connection.dispose();
+  }
+
+  RSocketRequester onGracefulDispose(Consumer<String> onGracefulDispose) {
+    this.onGracefulDisposeLocal = onGracefulDispose;
+    return this;
+  }
+
+  void gracefulDispose(String msg) {
+    logger.debug("Local graceful dispose RSocketRequester with message: {}", msg);
+    String message = rSocketErrorMapper.sendError(ErrorCodes.CONNECTION_CLOSE, msg);
+    sendProcessor.onNext(
+        ErrorFrameFlyweight.encode(allocator, 0, ErrorCodes.CONNECTION_CLOSE, message));
+    gracefulDisposeLocalTimeout =
+        transportScheduler.schedule(
+            () -> tryTerminate(TerminationSignal.gracefulCloseLocal(message)),
+            gracefulDisposeTimeout.toMillis(),
+            TimeUnit.MILLISECONDS);
+  }
+
+  void gracefulDisposeRemote(String msg) {
+    logger.debug("Remote graceful dispose RSocketRequester with message: {}", msg);
+    isGracefulDisposedRemote = true;
+    gracefulDisposeRemoteMessage = msg;
   }
 
   private static class Stream {
@@ -732,16 +809,24 @@ class RSocketRequester implements RSocket {
       return new TerminationSignal(timeout, Type.KEEP_ALIVE_TIMEOUT);
     }
 
-    public static TerminationSignal connectionClose(ClosedChannelException e) {
-      return new TerminationSignal(e, Type.CONNECTION_CLOSE);
+    public static TerminationSignal close(ClosedChannelException e) {
+      return new TerminationSignal(e, Type.CLOSE);
     }
 
-    public static TerminationSignal rSocketCloseRemote(ByteBuf connectionErrorFrame) {
-      return new TerminationSignal(connectionErrorFrame, Type.RSOCKET_CLOSE_REMOTE);
+    public static TerminationSignal gracefulCloseLocal(String message) {
+      return new TerminationSignal(message, Type.GRACEFUL_CLOSE_LOCAL);
     }
 
-    public static TerminationSignal rSocketCloseLocal(String errorMessage) {
-      return new TerminationSignal(errorMessage, Type.RSOCKET_CLOSE_LOCAL);
+    public static TerminationSignal gracefulCloseRemote(String message) {
+      return new TerminationSignal(message, Type.GRACEFUL_CLOSE_REMOTE);
+    }
+
+    public static TerminationSignal errorRemote(ByteBuf connectionErrorFrame) {
+      return new TerminationSignal(connectionErrorFrame, Type.ERROR_REMOTE);
+    }
+
+    public static TerminationSignal errorLocal(String errorMessage) {
+      return new TerminationSignal(errorMessage, Type.ERROR_LOCAL);
     }
 
     @SuppressWarnings("unchecked")
@@ -754,10 +839,12 @@ class RSocketRequester implements RSocket {
     }
 
     enum Type {
+      CLOSE,
+      GRACEFUL_CLOSE_REMOTE,
+      GRACEFUL_CLOSE_LOCAL,
       KEEP_ALIVE_TIMEOUT,
-      CONNECTION_CLOSE,
-      RSOCKET_CLOSE_REMOTE,
-      RSOCKET_CLOSE_LOCAL
+      ERROR_REMOTE,
+      ERROR_LOCAL,
     }
   }
 }

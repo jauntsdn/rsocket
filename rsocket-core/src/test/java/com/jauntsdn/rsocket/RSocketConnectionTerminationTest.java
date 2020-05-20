@@ -61,7 +61,8 @@ public class RSocketConnectionTerminationTest {
             StreamIdSupplier.clientSupplier(),
             100_000,
             100_000,
-            new KeepAliveHandler.DefaultKeepAliveHandler(conn));
+            new KeepAliveHandler.DefaultKeepAliveHandler(conn),
+            Duration.ofSeconds(300));
 
     String errorMsg = "error";
 
@@ -97,7 +98,8 @@ public class RSocketConnectionTerminationTest {
             StreamIdSupplier.clientSupplier(),
             100_000,
             100_000,
-            new KeepAliveHandler.DefaultKeepAliveHandler(conn));
+            new KeepAliveHandler.DefaultKeepAliveHandler(conn),
+            Duration.ofSeconds(300));
 
     conn.addToReceivedBuffer(
         ErrorFrameFlyweight.encode(
@@ -126,7 +128,8 @@ public class RSocketConnectionTerminationTest {
             StreamIdSupplier.clientSupplier(),
             100_000,
             100_000,
-            new KeepAliveHandler.DefaultKeepAliveHandler(conn));
+            new KeepAliveHandler.DefaultKeepAliveHandler(conn),
+            Duration.ofSeconds(300));
 
     String errorMsg = "error";
 
@@ -168,7 +171,8 @@ public class RSocketConnectionTerminationTest {
             StreamIdSupplier.clientSupplier(),
             100_000,
             100_000,
-            new KeepAliveHandler.DefaultKeepAliveHandler(conn));
+            new KeepAliveHandler.DefaultKeepAliveHandler(conn),
+            Duration.ofSeconds(300));
 
     String errorMsg = "error";
 
