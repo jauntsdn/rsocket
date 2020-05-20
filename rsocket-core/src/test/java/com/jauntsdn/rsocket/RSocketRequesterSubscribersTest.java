@@ -65,11 +65,13 @@ class RSocketRequesterSubscribersTest {
             connection,
             PayloadDecoder.DEFAULT,
             err -> {},
-            StreamErrorMappers.create().createErrorFrameMapper(ByteBufAllocator.DEFAULT),
+            StreamErrorMappers.create().createErrorMapper(ByteBufAllocator.DEFAULT),
+            RSocketErrorMappers.create().createErrorMapper(ByteBufAllocator.DEFAULT),
             StreamIdSupplier.clientSupplier(),
             100_000,
             100_000,
-            new KeepAliveHandler.DefaultKeepAliveHandler(connection));
+            new KeepAliveHandler.DefaultKeepAliveHandler(connection),
+            Duration.ofSeconds(300));
   }
 
   @ParameterizedTest

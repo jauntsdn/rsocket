@@ -8,12 +8,16 @@ import com.jauntsdn.rsocket.lease.*;
 import io.netty.buffer.ByteBufAllocator;
 import java.util.function.Consumer;
 import org.reactivestreams.Publisher;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Signal;
 
 class LeaseRSocketResponder extends RSocketResponder {
+  private static final Logger logger = LoggerFactory.getLogger(LeaseRSocketResponder.class);
+
   private final ResponderLeaseHandler leaseHandler;
   private final Disposable leaseDisposable;
 
@@ -23,9 +27,9 @@ class LeaseRSocketResponder extends RSocketResponder {
       RSocket requestHandler,
       PayloadDecoder payloadDecoder,
       Consumer<Throwable> errorConsumer,
-      ErrorFrameMapper errorFrameMapper,
+      StreamErrorMapper streamErrorMapper,
       ResponderLeaseHandler leaseHandler) {
-    super(allocator, connection, requestHandler, payloadDecoder, errorConsumer, errorFrameMapper);
+    super(allocator, connection, requestHandler, payloadDecoder, errorConsumer, streamErrorMapper);
     this.leaseHandler = leaseHandler;
     this.leaseDisposable = leaseHandler.send(this::sendFrame);
   }
@@ -129,7 +133,14 @@ class LeaseRSocketResponder extends RSocketResponder {
 
   @Override
   void terminate() {
-    super.terminate();
     leaseDisposable.dispose();
+    super.terminate();
+  }
+
+  @Override
+  public void gracefulDispose(String msg) {
+    logger.debug("Local graceful dispose RSocketResponder with message: {}, leases stopped", msg);
+    leaseDisposable.dispose();
+    super.gracefulDispose(msg);
   }
 }

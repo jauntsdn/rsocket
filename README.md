@@ -132,7 +132,7 @@ Bill of materials
 ```groovy
 dependencyManagement {
         imports {
-            mavenBom "com.jauntsdn.rsocket:rsocket-bom:0.9.4"
+            mavenBom "com.jauntsdn.rsocket:rsocket-bom:0.9.5"
         }
 }
 ```
@@ -151,7 +151,7 @@ Bill of materials
 ```groovy
 dependencyManagement {
         imports {
-            mavenBom "com.jauntsdn.rsocket:rsocket-rpc-bom:0.9.4"
+            mavenBom "com.jauntsdn.rsocket:rsocket-rpc-bom:0.9.5"
         }
 }
 ```

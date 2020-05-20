@@ -1,5 +1,6 @@
 package com.jauntsdn.rsocket;
 
+import static com.jauntsdn.rsocket.RSocketErrorMappers.*;
 import static com.jauntsdn.rsocket.StreamErrorMappers.*;
 
 import com.jauntsdn.rsocket.frame.decoder.PayloadDecoder;
@@ -7,6 +8,7 @@ import com.jauntsdn.rsocket.keepalive.KeepAliveHandler;
 import com.jauntsdn.rsocket.lease.RequesterLeaseHandler;
 import com.jauntsdn.rsocket.lease.ResponderLeaseHandler;
 import io.netty.buffer.ByteBufAllocator;
+import java.time.Duration;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
 import javax.annotation.Nullable;
@@ -22,18 +24,20 @@ interface RSocketsFactory {
       RSocket requestHandler,
       PayloadDecoder payloadDecoder,
       Consumer<Throwable> errorConsumer,
-      ErrorFrameMapper errorFrameMapper);
+      StreamErrorMapper streamErrorMapper);
 
   RSocketRequester createRequester(
       ByteBufAllocator allocator,
       DuplexConnection connection,
       PayloadDecoder payloadDecoder,
       Consumer<Throwable> errorConsumer,
-      ErrorFrameMapper errorFrameMapper,
+      StreamErrorMapper streamErrorMapper,
+      RSocketErrorMapper rSocketErrorMapper,
       StreamIdSupplier streamIdSupplier,
       int keepAliveTickPeriod,
       int keepAliveAckTimeout,
-      KeepAliveHandler keepAliveHandler);
+      KeepAliveHandler keepAliveHandler,
+      Duration gracefulShutdownTimeout);
 
   static RSocketsFactory createClient(
       boolean isLease, Scheduler scheduler, Leases.ClientConfigurer leaseConfigurer) {
@@ -74,7 +78,7 @@ interface RSocketsFactory {
         RSocket requestHandler,
         PayloadDecoder payloadDecoder,
         Consumer<Throwable> errorConsumer,
-        ErrorFrameMapper errorFrameMapper) {
+        StreamErrorMapper streamErrorMapper) {
 
       ResponderLeaseHandler leaseHandler =
           new ResponderLeaseHandler.Impl<>(
@@ -86,7 +90,7 @@ interface RSocketsFactory {
           requestHandler,
           payloadDecoder,
           errorConsumer,
-          errorFrameMapper,
+          streamErrorMapper,
           leaseHandler);
     }
 
@@ -96,11 +100,13 @@ interface RSocketsFactory {
         DuplexConnection connection,
         PayloadDecoder payloadDecoder,
         Consumer<Throwable> errorConsumer,
-        ErrorFrameMapper errorFrameMapper,
+        StreamErrorMapper streamErrorMapper,
+        RSocketErrorMapper rSocketErrorMapper,
         StreamIdSupplier streamIdSupplier,
         int keepAliveTickPeriod,
         int keepAliveAckTimeout,
-        KeepAliveHandler keepAliveHandler) {
+        KeepAliveHandler keepAliveHandler,
+        Duration gracefulShutdownTimeout) {
       RequesterLeaseHandler.Impl leaseHandler = new RequesterLeaseHandler.Impl();
 
       return new LeaseRSocketRequester(
@@ -108,11 +114,13 @@ interface RSocketsFactory {
           connection,
           payloadDecoder,
           errorConsumer,
-          errorFrameMapper,
+          streamErrorMapper,
+          rSocketErrorMapper,
           streamIdSupplier,
           keepAliveTickPeriod,
           keepAliveAckTimeout,
           keepAliveHandler,
+          gracefulShutdownTimeout,
           leaseHandler,
           rttConsumer);
     }
@@ -127,10 +135,10 @@ interface RSocketsFactory {
         RSocket requestHandler,
         PayloadDecoder payloadDecoder,
         Consumer<Throwable> errorConsumer,
-        ErrorFrameMapper errorFrameMapper) {
+        StreamErrorMapper streamErrorMapper) {
 
       return new RSocketResponder(
-          allocator, connection, requestHandler, payloadDecoder, errorConsumer, errorFrameMapper);
+          allocator, connection, requestHandler, payloadDecoder, errorConsumer, streamErrorMapper);
     }
 
     @Override
@@ -139,21 +147,25 @@ interface RSocketsFactory {
         DuplexConnection connection,
         PayloadDecoder payloadDecoder,
         Consumer<Throwable> errorConsumer,
-        ErrorFrameMapper errorFrameMapper,
+        StreamErrorMapper streamErrorMapper,
+        RSocketErrorMapper rSocketErrorMapper,
         StreamIdSupplier streamIdSupplier,
         int keepAliveTickPeriod,
         int keepAliveAckTimeout,
-        KeepAliveHandler keepAliveHandler) {
+        KeepAliveHandler keepAliveHandler,
+        Duration gracefulShutdownTimeout) {
       return new RSocketRequester(
           allocator,
           connection,
           payloadDecoder,
           errorConsumer,
-          errorFrameMapper,
+          streamErrorMapper,
+          rSocketErrorMapper,
           streamIdSupplier,
           keepAliveTickPeriod,
           keepAliveAckTimeout,
-          keepAliveHandler);
+          keepAliveHandler,
+          gracefulShutdownTimeout);
     }
   }
 }

@@ -59,11 +59,13 @@ public class KeepAliveTest {
             connection,
             PayloadDecoder.DEFAULT,
             errors,
-            StreamErrorMappers.create().createErrorFrameMapper(ByteBufAllocator.DEFAULT),
+            StreamErrorMappers.create().createErrorMapper(ByteBufAllocator.DEFAULT),
+            RSocketErrorMappers.create().createErrorMapper(ByteBufAllocator.DEFAULT),
             StreamIdSupplier.clientSupplier(),
             tickPeriod,
             timeout,
-            new DefaultKeepAliveHandler(connection));
+            new DefaultKeepAliveHandler(connection),
+            Duration.ofSeconds(300));
     return new RSocketState(rSocket, errors, connection);
   }
 
@@ -84,11 +86,13 @@ public class KeepAliveTest {
             resumableConnection,
             PayloadDecoder.DEFAULT,
             errors,
-            StreamErrorMappers.create().createErrorFrameMapper(ByteBufAllocator.DEFAULT),
+            StreamErrorMappers.create().createErrorMapper(ByteBufAllocator.DEFAULT),
+            RSocketErrorMappers.create().createErrorMapper(ByteBufAllocator.DEFAULT),
             StreamIdSupplier.clientSupplier(),
             tickPeriod,
             timeout,
-            new ResumableKeepAliveHandler(resumableConnection));
+            new ResumableKeepAliveHandler(resumableConnection),
+            Duration.ofSeconds(300));
     return new ResumableRSocketState(rSocket, errors, connection, resumableConnection);
   }
 

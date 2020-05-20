@@ -73,6 +73,11 @@ public class RSocketProxy implements RSocket {
   }
 
   @Override
+  public void dispose(String reason, boolean isGraceful) {
+    source.dispose(reason, isGraceful);
+  }
+
+  @Override
   public boolean isDisposed() {
     return source.isDisposed();
   }

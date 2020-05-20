@@ -53,16 +53,16 @@ public final class StreamErrorMappers {
     return this;
   }
 
-  ErrorFrameMapper createErrorFrameMapper(ByteBufAllocator allocator) {
-    return new ErrorFrameMapper(allocator, streamSendMapper, streamReceiveMapper);
+  StreamErrorMapper createErrorMapper(ByteBufAllocator allocator) {
+    return new StreamErrorMapper(allocator, streamSendMapper, streamReceiveMapper);
   }
 
-  static final class ErrorFrameMapper {
+  static final class StreamErrorMapper {
     private final ByteBufAllocator allocator;
     private final StreamSendMapper streamSendMapper;
     private final StreamReceiveMapper streamReceiveMapper;
 
-    private ErrorFrameMapper(
+    private StreamErrorMapper(
         ByteBufAllocator allocator,
         StreamSendMapper streamSendMapper,
         StreamReceiveMapper streamReceiveMapper) {

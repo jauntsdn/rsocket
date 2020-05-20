@@ -1,5 +1,6 @@
 package com.jauntsdn.rsocket;
 
+import static com.jauntsdn.rsocket.RSocketErrorMappers.*;
 import static com.jauntsdn.rsocket.StreamErrorMappers.*;
 
 import com.jauntsdn.rsocket.frame.decoder.PayloadDecoder;
@@ -7,6 +8,7 @@ import com.jauntsdn.rsocket.keepalive.KeepAliveHandler;
 import com.jauntsdn.rsocket.lease.RequesterLeaseHandler;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
+import java.time.Duration;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
 import javax.annotation.Nullable;
@@ -19,11 +21,13 @@ class LeaseRSocketRequester extends RSocketRequester {
       DuplexConnection connection,
       PayloadDecoder payloadDecoder,
       Consumer<Throwable> errorConsumer,
-      ErrorFrameMapper errorFrameMapper,
+      StreamErrorMapper streamErrorMapper,
+      RSocketErrorMapper rSocketErrorMapper,
       StreamIdSupplier streamIdSupplier,
       int keepAliveTickPeriod,
       int keepAliveAckTimeout,
       KeepAliveHandler keepAliveHandler,
+      Duration gracefulDisposeTimeout,
       RequesterLeaseHandler leaseHandler,
       @Nullable LongConsumer onRtt) {
     super(
@@ -31,11 +35,13 @@ class LeaseRSocketRequester extends RSocketRequester {
         connection,
         payloadDecoder,
         errorConsumer,
-        errorFrameMapper,
+        streamErrorMapper,
+        rSocketErrorMapper,
         streamIdSupplier,
         keepAliveTickPeriod,
         keepAliveAckTimeout,
-        keepAliveHandler);
+        keepAliveHandler,
+        gracefulDisposeTimeout);
     this.leaseHandler = leaseHandler;
     keepAlive().onRtt(onRtt);
   }

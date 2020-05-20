@@ -52,7 +52,7 @@ class RSocketResponder implements ResponderRSocket {
   private final ResponderRSocket responderRSocket;
   private final PayloadDecoder payloadDecoder;
   private final Consumer<Throwable> errorConsumer;
-  private final ErrorFrameMapper errorFrameMapper;
+  private final StreamErrorMapper streamErrorMapper;
 
   private final IntObjectMap<Subscription> senders;
   private final IntObjectMap<Processor<Payload, Payload>> receivers;
@@ -68,7 +68,7 @@ class RSocketResponder implements ResponderRSocket {
       RSocket requestHandler,
       PayloadDecoder payloadDecoder,
       Consumer<Throwable> errorConsumer,
-      ErrorFrameMapper errorFrameMapper) {
+      StreamErrorMapper streamErrorMapper) {
     this.allocator = allocator;
     this.connection = connection;
 
@@ -78,7 +78,7 @@ class RSocketResponder implements ResponderRSocket {
 
     this.payloadDecoder = payloadDecoder;
     this.errorConsumer = errorConsumer;
-    this.errorFrameMapper = errorFrameMapper;
+    this.streamErrorMapper = streamErrorMapper;
     this.senders = new SynchronizedIntObjectHashMap<>();
     this.receivers = new SynchronizedIntObjectHashMap<>();
 
@@ -260,7 +260,7 @@ class RSocketResponder implements ResponderRSocket {
         case ERROR:
           receiver = receivers.get(streamId);
           if (receiver != null) {
-            receiver.onError(errorFrameMapper.streamFrameToError(frame, StreamType.REQUEST));
+            receiver.onError(streamErrorMapper.streamFrameToError(frame, StreamType.REQUEST));
           }
           break;
         case SETUP:
@@ -342,7 +342,7 @@ class RSocketResponder implements ResponderRSocket {
           @Override
           protected void hookOnError(Throwable throwable) {
             sendProcessor.onNext(
-                errorFrameMapper.streamErrorToFrame(streamId, StreamType.RESPONSE, throwable));
+                streamErrorMapper.streamErrorToFrame(streamId, StreamType.RESPONSE, throwable));
           }
 
           @Override
@@ -393,7 +393,7 @@ class RSocketResponder implements ResponderRSocket {
           @Override
           protected void hookOnError(Throwable throwable) {
             sendProcessor.onNext(
-                errorFrameMapper.streamErrorToFrame(streamId, StreamType.RESPONSE, throwable));
+                streamErrorMapper.streamErrorToFrame(streamId, StreamType.RESPONSE, throwable));
           }
 
           @Override
@@ -471,4 +471,6 @@ class RSocketResponder implements ResponderRSocket {
       senders.remove(streamId);
     }
   }
+
+  void gracefulDispose(String msg) {}
 }
