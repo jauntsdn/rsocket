@@ -65,7 +65,7 @@ public class GracefulDisposeServerTest {
 
     server.onClose().as(StepVerifier::create).expectComplete().verify(Duration.ofSeconds(1));
     Assertions.assertThat(System.currentTimeMillis() - start)
-        .isCloseTo(drainMillis, Offset.offset(50L));
+        .isCloseTo(drainMillis, Offset.offset(100L));
     Assertions.assertThat(connection.isDisposed());
   }
 }
