@@ -4,11 +4,11 @@
 ch.qos.logback:logback-classic:1.2.3
 ch.qos.logback:logback-core:1.2.3
 io.micrometer:micrometer-core:1.4.1
-io.netty:netty-buffer:4.1.48.Final
-io.netty:netty-common:4.1.48.Final
+io.netty:netty-buffer:4.1.50.Final
+io.netty:netty-common:4.1.50.Final
 io.opentracing:opentracing-api:0.32.0
-io.projectreactor:reactor-core:3.3.4.RELEASE
-io.projectreactor:reactor-test:3.3.4.RELEASE
+io.projectreactor:reactor-core:3.3.5.RELEASE
+io.projectreactor:reactor-test:3.3.5.RELEASE
 javax.annotation:javax.annotation-api:1.2
 javax.inject:javax.inject:1
 junit:junit:4.12
