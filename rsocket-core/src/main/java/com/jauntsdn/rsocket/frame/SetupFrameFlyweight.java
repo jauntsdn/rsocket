@@ -55,8 +55,9 @@ public class SetupFrameFlyweight {
       final String dataMimeType,
       final Payload setupPayload) {
 
-    ByteBuf metadata = setupPayload.hasMetadata() ? setupPayload.sliceMetadata() : null;
-    ByteBuf data = setupPayload.sliceData();
+    ByteBuf metadata =
+        setupPayload.hasMetadata() ? writeBytes(allocator, setupPayload.metadata()) : null;
+    ByteBuf data = writeBytes(allocator, setupPayload.data());
 
     int flags = 0;
 
@@ -221,5 +222,18 @@ public class SetupFrameFlyweight {
     byte length = byteBuf.skipBytes(skip).readByte();
     length = byteBuf.skipBytes(length).readByte();
     byteBuf.skipBytes(length);
+  }
+
+  private static ByteBuf writeBytes(ByteBufAllocator allocator, ByteBuf byteBuf) {
+    int readableBytes = byteBuf.readableBytes();
+    if (readableBytes == 0) {
+      return Unpooled.EMPTY_BUFFER;
+    }
+    ByteBuf buffer = allocator.buffer(readableBytes);
+    byteBuf.markReaderIndex();
+    buffer.writeBytes(byteBuf);
+    byteBuf.resetReaderIndex();
+
+    return buffer;
   }
 }

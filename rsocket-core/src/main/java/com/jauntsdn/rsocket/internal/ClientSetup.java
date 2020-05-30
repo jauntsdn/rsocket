@@ -26,7 +26,6 @@ import com.jauntsdn.rsocket.resume.ResumableFramesStore;
 import com.jauntsdn.rsocket.resume.ResumeStrategy;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
-import io.netty.buffer.Unpooled;
 import java.time.Duration;
 import java.util.function.Supplier;
 import reactor.core.publisher.Mono;
@@ -36,8 +35,6 @@ public interface ClientSetup {
   DuplexConnection connection();
 
   KeepAliveHandler keepAliveHandler();
-
-  ByteBuf resumeToken();
 
   class DefaultClientSetup implements ClientSetup {
     private final DuplexConnection connection;
@@ -55,15 +52,9 @@ public interface ClientSetup {
     public KeepAliveHandler keepAliveHandler() {
       return new DefaultKeepAliveHandler(connection);
     }
-
-    @Override
-    public ByteBuf resumeToken() {
-      return Unpooled.EMPTY_BUFFER;
-    }
   }
 
   class ResumableClientSetup implements ClientSetup {
-    private final ByteBuf resumeToken;
     private final ResumableDuplexConnection duplexConnection;
     private final ResumableKeepAliveHandler keepAliveHandler;
 
@@ -91,7 +82,6 @@ public interface ClientSetup {
               .resumeToken(resumeToken);
       this.duplexConnection = rSocketSession.resumableConnection();
       this.keepAliveHandler = new ResumableKeepAliveHandler(duplexConnection);
-      this.resumeToken = resumeToken;
     }
 
     @Override
@@ -102,11 +92,6 @@ public interface ClientSetup {
     @Override
     public KeepAliveHandler keepAliveHandler() {
       return keepAliveHandler;
-    }
-
-    @Override
-    public ByteBuf resumeToken() {
-      return resumeToken;
     }
   }
 }
