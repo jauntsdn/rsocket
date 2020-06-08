@@ -203,7 +203,7 @@ class RSocketRequester implements RSocket {
 
   @Override
   public boolean isDisposed() {
-    return connection.isDisposed() || isGracefulDisposedLocal || isGracefulDisposedRemote;
+    return connection.isDisposed() || isGracefulDisposedRemote;
   }
 
   @Override
