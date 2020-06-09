@@ -17,18 +17,24 @@
 package com.jauntsdn.rsocket.fragmentation;
 
 import com.jauntsdn.rsocket.frame.*;
+import com.jauntsdn.rsocket.test.util.TestDuplexConnection;
 import com.jauntsdn.rsocket.util.DefaultPayload;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.util.ReferenceCountUtil;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.stream.Stream;
 import org.junit.Assert;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import reactor.core.publisher.Flux;
 import reactor.test.StepVerifier;
 
@@ -476,5 +482,57 @@ final class FrameReassemblerTest {
     Assert.assertFalse(reassembler.headers.containsKey(1));
     Assert.assertFalse(reassembler.metadata.containsKey(1));
     Assert.assertFalse(reassembler.data.containsKey(1));
+  }
+
+  @ParameterizedTest
+  @MethodSource("framesProvider")
+  void sizeLimit(List<ByteBuf> frames) {
+    TestDuplexConnection connection = new TestDuplexConnection();
+    int frameSizeLimit = 2048;
+    FragmentationDuplexConnection fragmentationConnection =
+        new FragmentationDuplexConnection(connection, ByteBufAllocator.DEFAULT, frameSizeLimit);
+    List<ByteBuf> received = new ArrayList<>();
+    Collection<ByteBuf> sent = connection.getSent();
+    fragmentationConnection.receive().subscribe(received::add);
+    connection.addToReceivedBuffer(frames.get(0), frames.get(1));
+    try {
+      Assert.assertTrue(connection.isDisposed());
+      Assert.assertEquals(1, sent.size());
+      ByteBuf frame = sent.iterator().next();
+      Assert.assertEquals(FrameType.ERROR, FrameHeaderFlyweight.frameType(frame));
+      Assert.assertEquals(ErrorCodes.CONNECTION_ERROR, ErrorFrameFlyweight.errorCode(frame));
+      Assert.assertEquals(
+          "Fragmented frame total size limit exceeded: " + frameSizeLimit,
+          ErrorFrameFlyweight.dataUtf8(frame));
+    } finally {
+      sent.forEach(ReferenceCountUtil::release);
+      received.forEach(ReferenceCountUtil::release);
+    }
+  }
+
+  static Stream<List<ByteBuf>> framesProvider() {
+    ByteBufAllocator allocator = ByteBufAllocator.DEFAULT;
+
+    List<ByteBuf> dataMetadata = new ArrayList<>();
+    dataMetadata.add(
+        RequestResponseFrameFlyweight.encode(
+            allocator, 1, true, DefaultPayload.create(new byte[0], data)));
+    dataMetadata.add(
+        PayloadFrameFlyweight.encode(
+            allocator, 1, true, false, true, DefaultPayload.create(data, new byte[0])));
+
+    List<ByteBuf> dataData = new ArrayList<>();
+    dataData.add(
+        RequestResponseFrameFlyweight.encode(allocator, 1, true, DefaultPayload.create(data)));
+    dataData.add(
+        PayloadFrameFlyweight.encode(allocator, 1, true, false, true, DefaultPayload.create(data)));
+
+    List<ByteBuf> dataDataNoFollows = new ArrayList<>();
+    dataDataNoFollows.add(
+        RequestResponseFrameFlyweight.encode(allocator, 1, true, DefaultPayload.create(data)));
+    dataDataNoFollows.add(
+        PayloadFrameFlyweight.encode(allocator, 1, false, true, true, DefaultPayload.create(data)));
+
+    return Stream.of(dataDataNoFollows, dataData, dataMetadata);
   }
 }

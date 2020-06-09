@@ -24,7 +24,7 @@ import io.netty.buffer.Unpooled;
 import io.netty.util.ReferenceCountUtil;
 import io.netty.util.collection.IntObjectHashMap;
 import io.netty.util.collection.IntObjectMap;
-import java.util.concurrent.atomic.AtomicBoolean;
+import javax.annotation.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.Disposable;
@@ -37,10 +37,7 @@ import reactor.core.publisher.SynchronousSink;
  *     href="https://github.com/rsocket/rsocket/blob/master/Protocol.md#fragmentation-and-reassembly">Fragmentation
  *     and Reassembly</a>
  */
-final class FrameReassembler extends AtomicBoolean implements Disposable {
-
-  private static final long serialVersionUID = -4394598098863449055L;
-
+final class FrameReassembler implements Disposable {
   private static final Logger logger = LoggerFactory.getLogger(FrameReassembler.class);
 
   final IntObjectMap<ByteBuf> headers;
@@ -49,6 +46,8 @@ final class FrameReassembler extends AtomicBoolean implements Disposable {
 
   private final ByteBufAllocator allocator;
   private final int frameSizeLimit;
+  /*written on eventloop thread, read on client threads*/
+  private volatile boolean isDisposed;
 
   public FrameReassembler(ByteBufAllocator allocator, int frameSizeLimit) {
     this.allocator = allocator;
@@ -60,36 +59,36 @@ final class FrameReassembler extends AtomicBoolean implements Disposable {
 
   @Override
   public void dispose() {
-    if (compareAndSet(false, true)) {
-      synchronized (FrameReassembler.this) {
-        for (ByteBuf byteBuf : headers.values()) {
-          ReferenceCountUtil.safeRelease(byteBuf);
-        }
-        headers.clear();
-
-        for (ByteBuf byteBuf : metadata.values()) {
-          ReferenceCountUtil.safeRelease(byteBuf);
-        }
-        metadata.clear();
-
-        for (ByteBuf byteBuf : data.values()) {
-          ReferenceCountUtil.safeRelease(byteBuf);
-        }
-        data.clear();
+    if (!isDisposed) {
+      isDisposed = true;
+      for (ByteBuf byteBuf : headers.values()) {
+        ReferenceCountUtil.safeRelease(byteBuf);
       }
+      headers.clear();
+
+      for (ByteBuf byteBuf : metadata.values()) {
+        ReferenceCountUtil.safeRelease(byteBuf);
+      }
+      metadata.clear();
+
+      for (ByteBuf byteBuf : data.values()) {
+        ReferenceCountUtil.safeRelease(byteBuf);
+      }
+      data.clear();
     }
   }
 
   @Override
   public boolean isDisposed() {
-    return get();
+    return isDisposed;
   }
 
-  synchronized ByteBuf getHeader(int streamId) {
+  @Nullable
+  private ByteBuf getHeader(int streamId) {
     return headers.get(streamId);
   }
 
-  synchronized CompositeByteBuf getMetadata(int streamId) {
+  private CompositeByteBuf getMetadata(int streamId) {
     CompositeByteBuf byteBuf = metadata.get(streamId);
 
     if (byteBuf == null) {
@@ -100,7 +99,7 @@ final class FrameReassembler extends AtomicBoolean implements Disposable {
     return byteBuf;
   }
 
-  synchronized CompositeByteBuf getData(int streamId) {
+  private CompositeByteBuf getData(int streamId) {
     CompositeByteBuf byteBuf = data.get(streamId);
 
     if (byteBuf == null) {
@@ -111,23 +110,26 @@ final class FrameReassembler extends AtomicBoolean implements Disposable {
     return byteBuf;
   }
 
-  synchronized ByteBuf removeHeader(int streamId) {
+  @Nullable
+  private ByteBuf removeHeader(int streamId) {
     return headers.remove(streamId);
   }
 
-  synchronized CompositeByteBuf removeMetadata(int streamId) {
+  @Nullable
+  private CompositeByteBuf removeMetadata(int streamId) {
     return metadata.remove(streamId);
   }
 
-  synchronized CompositeByteBuf removeData(int streamId) {
+  @Nullable
+  private CompositeByteBuf removeData(int streamId) {
     return data.remove(streamId);
   }
 
-  synchronized void putHeader(int streamId, ByteBuf header) {
+  private void putHeader(int streamId, ByteBuf header) {
     headers.put(streamId, header);
   }
 
-  void cancelAssemble(int streamId) {
+  private void cancelAssemble(int streamId) {
     ByteBuf header = removeHeader(streamId);
     CompositeByteBuf metadata = removeMetadata(streamId);
     CompositeByteBuf data = removeData(streamId);
@@ -145,24 +147,27 @@ final class FrameReassembler extends AtomicBoolean implements Disposable {
     }
   }
 
-  void handleNoFollowsFlag(ByteBuf frame, SynchronousSink<ByteBuf> sink, int streamId) {
+  private boolean handleNoFollowsFlag(ByteBuf frame, SynchronousSink<ByteBuf> sink, int streamId) {
     ByteBuf header = removeHeader(streamId);
-    if (header != null) {
-      if (FrameHeaderFlyweight.hasMetadata(header)) {
-        ByteBuf assembledFrame = assembleFrameWithMetadata(frame, streamId, header);
-        sink.next(assembledFrame);
-      } else {
-        ByteBuf data = assembleData(frame, streamId);
-        ByteBuf assembledFrame = FragmentationFlyweight.encode(allocator, header, data);
-        sink.next(assembledFrame);
-      }
-      frame.release();
-    } else {
+    if (header == null) {
       sink.next(frame);
+      return true;
     }
+    ByteBuf assembledFrame =
+        FrameHeaderFlyweight.hasMetadata(header)
+            ? assembleFrameWithMetadata(frame, streamId, header)
+            : FragmentationFlyweight.encode(allocator, header, assembleData(frame, streamId));
+    frame.release();
+    if (exceedsSizeLimit(assembledFrame)) {
+      assembledFrame.release();
+      return false;
+    }
+    sink.next(assembledFrame);
+    return true;
   }
 
-  void handleFollowsFlag(ByteBuf frame, int streamId, FrameType frameType) {
+  boolean handleFollowsFlag(ByteBuf frame, int streamId, FrameType frameType) {
+    int assembledSize = frame.readableBytes();
     ByteBuf header = getHeader(streamId);
     if (header == null) {
       header = frame.copy(frame.readerIndex(), FrameHeaderFlyweight.size());
@@ -175,63 +180,82 @@ final class FrameReassembler extends AtomicBoolean implements Disposable {
     }
 
     if (FrameHeaderFlyweight.hasMetadata(frame)) {
-      CompositeByteBuf metadata = getMetadata(streamId);
+      CompositeByteBuf compositeMetadata = getMetadata(streamId);
+      assembledSize = addFragmentSize(assembledSize, compositeMetadata);
+      if (assembledSize < 0) {
+        frame.release();
+        return false;
+      }
+      ByteBuf metadata;
       switch (frameType) {
         case REQUEST_FNF:
-          metadata.addComponents(true, RequestFireAndForgetFrameFlyweight.metadata(frame).retain());
+          metadata = RequestFireAndForgetFrameFlyweight.metadata(frame);
           break;
         case REQUEST_STREAM:
-          metadata.addComponents(true, RequestStreamFrameFlyweight.metadata(frame).retain());
+          metadata = RequestStreamFrameFlyweight.metadata(frame);
           break;
         case REQUEST_RESPONSE:
-          metadata.addComponents(true, RequestResponseFrameFlyweight.metadata(frame).retain());
+          metadata = RequestResponseFrameFlyweight.metadata(frame);
           break;
         case REQUEST_CHANNEL:
-          metadata.addComponents(true, RequestChannelFrameFlyweight.metadata(frame).retain());
+          metadata = RequestChannelFrameFlyweight.metadata(frame);
           break;
           // Payload and synthetic types
         case PAYLOAD:
         case NEXT:
         case NEXT_COMPLETE:
         case COMPLETE:
-          metadata.addComponents(true, PayloadFrameFlyweight.metadata(frame).retain());
+          metadata = PayloadFrameFlyweight.metadata(frame);
           break;
         default:
+          frame.release();
           throw new IllegalStateException("unsupported fragment type");
       }
+      compositeMetadata.addComponents(true, metadata.retain());
+    }
+
+    CompositeByteBuf compositeData = getData(streamId);
+    assembledSize = addFragmentSize(assembledSize, compositeData);
+    if (assembledSize < 0) {
+      frame.release();
+      return false;
     }
 
     ByteBuf data;
     switch (frameType) {
       case REQUEST_FNF:
-        data = RequestFireAndForgetFrameFlyweight.data(frame).retain();
+        data = RequestFireAndForgetFrameFlyweight.data(frame);
         break;
       case REQUEST_STREAM:
-        data = RequestStreamFrameFlyweight.data(frame).retain();
+        data = RequestStreamFrameFlyweight.data(frame);
         break;
       case REQUEST_RESPONSE:
-        data = RequestResponseFrameFlyweight.data(frame).retain();
+        data = RequestResponseFrameFlyweight.data(frame);
         break;
       case REQUEST_CHANNEL:
-        data = RequestChannelFrameFlyweight.data(frame).retain();
+        data = RequestChannelFrameFlyweight.data(frame);
         break;
         // Payload and synthetic types
       case PAYLOAD:
       case NEXT:
       case NEXT_COMPLETE:
       case COMPLETE:
-        data = PayloadFrameFlyweight.data(frame).retain();
+        data = PayloadFrameFlyweight.data(frame);
         break;
       default:
         throw new IllegalStateException("unsupported fragment type");
     }
-
-    getData(streamId).addComponents(true, data);
+    compositeData.addComponents(true, data.retain());
     frame.release();
+    return true;
   }
 
-  void reassembleFrame(ByteBuf frame, SynchronousSink<ByteBuf> sink) {
+  boolean reassembleFrame(ByteBuf frame, SynchronousSink<ByteBuf> sink) {
     try {
+      if (isDisposed) {
+        ReferenceCountUtil.release(frame);
+        return true;
+      }
       FrameType frameType = FrameHeaderFlyweight.frameType(frame);
       int streamId = FrameHeaderFlyweight.streamId(frame);
       switch (frameType) {
@@ -244,21 +268,34 @@ final class FrameReassembler extends AtomicBoolean implements Disposable {
 
       if (!frameType.isFragmentable()) {
         sink.next(frame);
-        return;
+        return true;
       }
 
       boolean hasFollows = FrameHeaderFlyweight.hasFollows(frame);
-
-      if (hasFollows) {
-        handleFollowsFlag(frame, streamId, frameType);
-      } else {
-        handleNoFollowsFlag(frame, sink, streamId);
+      boolean success =
+          hasFollows
+              ? handleFollowsFlag(frame, streamId, frameType)
+              : handleNoFollowsFlag(frame, sink, streamId);
+      if (!success) {
+        return false;
       }
-
     } catch (Throwable t) {
       logger.error("error reassemble frame", t);
       sink.error(t);
     }
+    return true;
+  }
+
+  private boolean exceedsSizeLimit(ByteBuf assembledFrame) {
+    return assembledFrame.readableBytes() > frameSizeLimit;
+  }
+
+  private int addFragmentSize(int curSize, ByteBuf fragment) {
+    int size = curSize + fragment.readableBytes();
+    if (size < 0 || size > frameSizeLimit) {
+      return -1;
+    }
+    return size;
   }
 
   private ByteBuf assembleFrameWithMetadata(ByteBuf frame, int streamId, ByteBuf header) {
