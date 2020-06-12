@@ -16,12 +16,14 @@
 
 package com.jauntsdn.rsocket;
 
+import static com.jauntsdn.rsocket.RSocketErrorMappers.*;
 import static com.jauntsdn.rsocket.StreamErrorMappers.*;
 
 import com.jauntsdn.rsocket.frame.FrameType;
 import com.jauntsdn.rsocket.frame.decoder.PayloadDecoder;
 import com.jauntsdn.rsocket.lease.*;
 import io.netty.buffer.ByteBufAllocator;
+import java.time.Duration;
 import java.util.function.Consumer;
 import org.reactivestreams.Publisher;
 import org.slf4j.Logger;
@@ -44,8 +46,20 @@ class LeaseRSocketResponder extends RSocketResponder {
       PayloadDecoder payloadDecoder,
       Consumer<Throwable> errorConsumer,
       StreamErrorMapper streamErrorMapper,
-      ResponderLeaseHandler leaseHandler) {
-    super(allocator, connection, requestHandler, payloadDecoder, errorConsumer, streamErrorMapper);
+      RSocketErrorMapper rSocketErrorMapper,
+      ResponderLeaseHandler leaseHandler,
+      int metadataPushLimit,
+      Duration metadataPushLimitInterval) {
+    super(
+        allocator,
+        connection,
+        requestHandler,
+        payloadDecoder,
+        errorConsumer,
+        streamErrorMapper,
+        rSocketErrorMapper,
+        metadataPushLimit,
+        metadataPushLimitInterval);
     this.leaseHandler = leaseHandler;
     this.leaseDisposable = leaseHandler.send(this::sendFrame);
   }
@@ -148,9 +162,9 @@ class LeaseRSocketResponder extends RSocketResponder {
   }
 
   @Override
-  void terminate() {
+  void terminate(Throwable t) {
     leaseDisposable.dispose();
-    super.terminate();
+    super.terminate(t);
   }
 
   @Override

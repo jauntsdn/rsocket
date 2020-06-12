@@ -40,7 +40,10 @@ interface RSocketsFactory {
       RSocket requestHandler,
       PayloadDecoder payloadDecoder,
       Consumer<Throwable> errorConsumer,
-      StreamErrorMapper streamErrorMapper);
+      StreamErrorMapper streamErrorMapper,
+      RSocketErrorMapper rSocketErrorMapper,
+      int metadataPushLimit,
+      Duration metadataPushLimitInterval);
 
   RSocketRequester createRequester(
       ByteBufAllocator allocator,
@@ -94,7 +97,10 @@ interface RSocketsFactory {
         RSocket requestHandler,
         PayloadDecoder payloadDecoder,
         Consumer<Throwable> errorConsumer,
-        StreamErrorMapper streamErrorMapper) {
+        StreamErrorMapper streamErrorMapper,
+        RSocketErrorMapper rSocketErrorMapper,
+        int metadataPushLimit,
+        Duration metadataPushLimitInterval) {
 
       ResponderLeaseHandler leaseHandler =
           new ResponderLeaseHandler.Impl<>(
@@ -107,7 +113,10 @@ interface RSocketsFactory {
           payloadDecoder,
           errorConsumer,
           streamErrorMapper,
-          leaseHandler);
+          rSocketErrorMapper,
+          leaseHandler,
+          metadataPushLimit,
+          metadataPushLimitInterval);
     }
 
     @Override
@@ -151,10 +160,21 @@ interface RSocketsFactory {
         RSocket requestHandler,
         PayloadDecoder payloadDecoder,
         Consumer<Throwable> errorConsumer,
-        StreamErrorMapper streamErrorMapper) {
+        StreamErrorMapper streamErrorMapper,
+        RSocketErrorMapper rSocketErrorMapper,
+        int metadataPushLimit,
+        Duration metadataPushLimitInterval) {
 
       return new RSocketResponder(
-          allocator, connection, requestHandler, payloadDecoder, errorConsumer, streamErrorMapper);
+          allocator,
+          connection,
+          requestHandler,
+          payloadDecoder,
+          errorConsumer,
+          streamErrorMapper,
+          rSocketErrorMapper,
+          metadataPushLimit,
+          metadataPushLimitInterval);
     }
 
     @Override

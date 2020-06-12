@@ -120,6 +120,8 @@ public class RSocketFactory {
     private boolean multiSubscriberRequester = true;
     private boolean leaseEnabled;
     private Leases.ClientConfigurer leaseConfigurer = (rtt, scheduler) -> Leases.create();
+    private int metadataPushLimit = 10;
+    private Duration metadataPushLimitInterval = Duration.ofSeconds(1);
 
     private ByteBufAllocator allocator = ByteBufAllocator.DEFAULT;
     private boolean acceptFragmentedFrames;
@@ -265,6 +267,19 @@ public class RSocketFactory {
 
     public ClientRSocketFactory frameSizeLimit(int frameSizeLimit) {
       this.frameSizeLimit = Preconditions.requireFrameSizeValid(frameSizeLimit);
+      return this;
+    }
+
+    /**
+     * Limits metadata-pushes rate. If limit is exceeded, RSocket is terminated
+     *
+     * @param numberOfRequests number of metadata-pushes allowed in given interval
+     * @param limitInterval interval where given number of metadata-pushes is allowed
+     * @return this {@link ClientRSocketFactory} instance
+     */
+    public ClientRSocketFactory metadataPushLimit(int numberOfRequests, Duration limitInterval) {
+      metadataPushLimit = Preconditions.requirePositive(numberOfRequests, "numberOfRequests");
+      metadataPushLimitInterval = Objects.requireNonNull(limitInterval, "limitInterval");
       return this;
     }
 
@@ -425,7 +440,10 @@ public class RSocketFactory {
                           wrappedRSocketHandler,
                           payloadDecoder,
                           errorConsumer,
-                          streamErrorMapper);
+                          streamErrorMapper,
+                          rSocketErrorMapper,
+                          metadataPushLimit,
+                          metadataPushLimitInterval);
 
                   gracefullyDisposableRequester.onGracefulDispose(
                       rSocketResponder::gracefulDispose);
@@ -512,6 +530,8 @@ public class RSocketFactory {
     private final ServerGracefulDispose gracefulDispose =
         ServerGracefulDispose.create().drainTimeout(Duration.ofSeconds(600));
     private ServerGracefulDispose.Configurer gracefulDisposeConfigurer = gracefulDispose -> {};
+    private int metadataPushLimit = 10;
+    private Duration metadataPushLimitInterval = Duration.ofSeconds(1);
 
     private ServerRSocketFactory() {}
 
@@ -645,6 +665,19 @@ public class RSocketFactory {
 
     public ServerRSocketFactory frameSizeLimit(int frameSizeLimit) {
       this.frameSizeLimit = Preconditions.requireFrameSizeValid(frameSizeLimit);
+      return this;
+    }
+
+    /**
+     * Limits metadata-pushes rate. If limit is exceeded, RSocket is terminated
+     *
+     * @param numberOfRequests number of metadata-pushes allowed in given interval
+     * @param limitInterval interval where given number of metadata-pushes is allowed
+     * @return this {@link ServerRSocketFactory} instance
+     */
+    public ServerRSocketFactory metadataPushLimit(int numberOfRequests, Duration limitInterval) {
+      metadataPushLimit = Preconditions.requirePositive(numberOfRequests, "numberOfRequests");
+      metadataPushLimitInterval = Objects.requireNonNull(limitInterval, "limitInterval");
       return this;
     }
 
@@ -835,7 +868,10 @@ public class RSocketFactory {
                                         wrappedRSocketHandler,
                                         payloadDecoder,
                                         errorConsumer,
-                                        streamErrorMapper);
+                                        streamErrorMapper,
+                                        rSocketErrorMapper,
+                                        metadataPushLimit,
+                                        metadataPushLimitInterval);
 
                                 gracefullyDisposableRequester.onGracefulDispose(
                                     rSocketResponder::gracefulDispose);

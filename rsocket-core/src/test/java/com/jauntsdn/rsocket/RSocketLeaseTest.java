@@ -113,7 +113,10 @@ class RSocketLeaseTest {
             payloadDecoder,
             err -> {},
             StreamErrorMappers.create().createErrorMapper(ByteBufAllocator.DEFAULT),
-            responderLeaseHandler);
+            RSocketErrorMappers.create().createErrorMapper(ByteBufAllocator.DEFAULT),
+            responderLeaseHandler,
+            100,
+            Duration.ofSeconds(1));
   }
 
   @Test

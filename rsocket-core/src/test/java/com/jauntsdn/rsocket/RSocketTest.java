@@ -169,7 +169,10 @@ public class RSocketTest {
               requestAcceptor,
               PayloadDecoder.DEFAULT,
               throwable -> serverErrors.add(throwable),
-              StreamErrorMappers.create().createErrorMapper(ByteBufAllocator.DEFAULT));
+              StreamErrorMappers.create().createErrorMapper(ByteBufAllocator.DEFAULT),
+              RSocketErrorMappers.create().createErrorMapper(ByteBufAllocator.DEFAULT),
+              100,
+              Duration.ofSeconds(1));
 
       crs =
           new RSocketRequester(
