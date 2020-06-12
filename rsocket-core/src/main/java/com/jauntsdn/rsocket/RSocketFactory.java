@@ -270,6 +270,13 @@ public class RSocketFactory {
       return this;
     }
 
+    /**
+     * Limits metadata-pushes rate. If limit is exceeded, RSocket is terminated
+     *
+     * @param numberOfRequests number of metadata-pushes allowed in given interval
+     * @param limitInterval interval where given number of metadata-pushes is allowed
+     * @return this {@link ClientRSocketFactory} instance
+     */
     public ClientRSocketFactory metadataPushLimit(int numberOfRequests, Duration limitInterval) {
       metadataPushLimit = Preconditions.requirePositive(numberOfRequests, "numberOfRequests");
       metadataPushLimitInterval = Objects.requireNonNull(limitInterval, "limitInterval");
@@ -661,6 +668,13 @@ public class RSocketFactory {
       return this;
     }
 
+    /**
+     * Limits metadata-pushes rate. If limit is exceeded, RSocket is terminated
+     *
+     * @param numberOfRequests number of metadata-pushes allowed in given interval
+     * @param limitInterval interval where given number of metadata-pushes is allowed
+     * @return this {@link ServerRSocketFactory} instance
+     */
     public ServerRSocketFactory metadataPushLimit(int numberOfRequests, Duration limitInterval) {
       metadataPushLimit = Preconditions.requirePositive(numberOfRequests, "numberOfRequests");
       metadataPushLimitInterval = Objects.requireNonNull(limitInterval, "limitInterval");
