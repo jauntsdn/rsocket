@@ -16,8 +16,10 @@
 
 package com.jauntsdn.rsocket;
 
+import static com.jauntsdn.rsocket.RSocketErrorMappers.*;
 import static com.jauntsdn.rsocket.StreamErrorMappers.*;
 
+import com.jauntsdn.rsocket.exceptions.ConnectionErrorException;
 import com.jauntsdn.rsocket.frame.*;
 import com.jauntsdn.rsocket.frame.decoder.PayloadDecoder;
 import com.jauntsdn.rsocket.internal.SynchronizedIntObjectHashMap;
@@ -28,6 +30,8 @@ import io.netty.buffer.ByteBufUtil;
 import io.netty.util.ReferenceCountUtil;
 import io.netty.util.collection.IntObjectMap;
 import java.nio.channels.ClosedChannelException;
+import java.time.Duration;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import org.reactivestreams.Processor;
 import org.reactivestreams.Publisher;
@@ -53,14 +57,18 @@ class RSocketResponder implements ResponderRSocket {
   private final PayloadDecoder payloadDecoder;
   private final Consumer<Throwable> errorConsumer;
   private final StreamErrorMapper streamErrorMapper;
-
+  private RSocketErrorMapper rSocketErrorMapper;
+  private final int metadataPushesLimit;
+  private final long metadataPushesInterval;
   private final IntObjectMap<Subscription> senders;
   private final IntObjectMap<Processor<Payload, Payload>> receivers;
-
   private final UnboundedProcessor<ByteBuf> sendProcessor;
   private final ByteBufAllocator allocator;
 
   private volatile Throwable terminationError;
+
+  private int metadataPushes;
+  private long metadataPushIntervalStart;
 
   RSocketResponder(
       ByteBufAllocator allocator,
@@ -68,7 +76,10 @@ class RSocketResponder implements ResponderRSocket {
       RSocket requestHandler,
       PayloadDecoder payloadDecoder,
       Consumer<Throwable> errorConsumer,
-      StreamErrorMapper streamErrorMapper) {
+      StreamErrorMapper streamErrorMapper,
+      RSocketErrorMapper rSocketErrorMapper,
+      int metadataPushesLimit,
+      Duration metadataPushesInterval) {
     this.allocator = allocator;
     this.connection = connection;
 
@@ -79,6 +90,9 @@ class RSocketResponder implements ResponderRSocket {
     this.payloadDecoder = payloadDecoder;
     this.errorConsumer = errorConsumer;
     this.streamErrorMapper = streamErrorMapper;
+    this.rSocketErrorMapper = rSocketErrorMapper;
+    this.metadataPushesLimit = metadataPushesLimit;
+    this.metadataPushesInterval = metadataPushesInterval.toNanos();
     this.senders = new SynchronizedIntObjectHashMap<>();
     this.receivers = new SynchronizedIntObjectHashMap<>();
 
@@ -88,7 +102,10 @@ class RSocketResponder implements ResponderRSocket {
 
     connection.receive().subscribe(this::handleFrame, errorConsumer);
 
-    this.connection.onClose().doFinally(s -> terminate()).subscribe(null, errorConsumer);
+    this.connection
+        .onClose()
+        .doFinally(s -> terminate(CLOSED_CHANNEL_EXCEPTION))
+        .subscribe(null, errorConsumer);
   }
 
   @Override
@@ -137,6 +154,9 @@ class RSocketResponder implements ResponderRSocket {
   @Override
   public Mono<Void> metadataPush(Payload payload) {
     try {
+      if (!checkMetadataPushAllowed()) {
+        return terminateMetadataPushLimit();
+      }
       return requestHandler.metadataPush(payload);
     } catch (Throwable t) {
       return Mono.error(t);
@@ -158,16 +178,17 @@ class RSocketResponder implements ResponderRSocket {
     return connection.onClose();
   }
 
+  void gracefulDispose(String msg) {}
+
   void sendFrame(ByteBuf frame) {
     sendProcessor.onNext(frame);
   }
 
-  void terminate() {
-    Throwable e = this.terminationError;
-    if (e == null) {
-      this.terminationError = e = CLOSED_CHANNEL_EXCEPTION;
+  void terminate(Throwable t) {
+    if (terminationError != null) {
+      return;
     }
-    final Throwable err = e;
+    final Throwable err = terminationError = t;
 
     synchronized (receivers) {
       receivers
@@ -176,8 +197,8 @@ class RSocketResponder implements ResponderRSocket {
               receiver -> {
                 try {
                   receiver.onError(err);
-                } catch (Throwable t) {
-                  errorConsumer.accept(t);
+                } catch (Throwable throwable) {
+                  errorConsumer.accept(throwable);
                 }
               });
     }
@@ -188,8 +209,8 @@ class RSocketResponder implements ResponderRSocket {
               sender -> {
                 try {
                   sender.cancel();
-                } catch (Throwable t) {
-                  errorConsumer.accept(t);
+                } catch (Throwable throwable) {
+                  errorConsumer.accept(throwable);
                 }
               });
     }
@@ -472,5 +493,32 @@ class RSocketResponder implements ResponderRSocket {
     }
   }
 
-  void gracefulDispose(String msg) {}
+  private Mono<Void> terminateMetadataPushLimit() {
+    int code = ErrorCodes.CONNECTION_ERROR;
+    String message =
+        String.format(
+            "metadata-push limit exceeded: %d over %d millis",
+            metadataPushesLimit, TimeUnit.NANOSECONDS.toMillis(metadataPushesInterval));
+    String mappedMessage = rSocketErrorMapper.sendError(code, message);
+
+    ConnectionErrorException e = new ConnectionErrorException(mappedMessage);
+    terminate(e);
+    DuplexConnection c = connection;
+    Consumer<Throwable> ec = errorConsumer;
+    c.sendOne(ErrorFrameFlyweight.encode(allocator, 0, code, mappedMessage))
+        .subscribe(unused -> {}, ec);
+    c.dispose();
+    ec.accept(e);
+    return Mono.empty();
+  }
+
+  private boolean checkMetadataPushAllowed() {
+    long now = System.nanoTime();
+    long interval = now - metadataPushIntervalStart;
+    if (interval >= metadataPushesInterval) {
+      metadataPushIntervalStart = now;
+      metadataPushes = metadataPushesLimit;
+    }
+    return metadataPushes-- > 0;
+  }
 }

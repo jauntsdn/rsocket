@@ -36,6 +36,7 @@ import com.jauntsdn.rsocket.util.MultiSubscriberRSocket;
 import com.jauntsdn.rsocket.util.Preconditions;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
+import io.netty.buffer.Unpooled;
 import java.time.Duration;
 import java.util.Objects;
 import java.util.function.Consumer;
@@ -107,7 +108,7 @@ public class RSocketFactory {
 
     private boolean resumeEnabled;
     private boolean resumeCleanupStoreOnKeepAlive;
-    private Supplier<ByteBuf> resumeTokenSupplier = ResumeFrameFlyweight::generateResumeToken;
+    private ByteBuf resumeToken = Unpooled.EMPTY_BUFFER;
     private Function<? super ByteBuf, ? extends ResumableFramesStore> resumeStoreFactory =
         token -> new InMemoryResumableFramesStore(CLIENT_TAG, 100_000);
     private Duration resumeSessionDuration = Duration.ofMinutes(2);
@@ -119,6 +120,8 @@ public class RSocketFactory {
     private boolean multiSubscriberRequester = true;
     private boolean leaseEnabled;
     private Leases.ClientConfigurer leaseConfigurer = (rtt, scheduler) -> Leases.create();
+    private int metadataPushLimit = 10;
+    private Duration metadataPushLimitInterval = Duration.ofSeconds(1);
 
     private ByteBufAllocator allocator = ByteBufAllocator.DEFAULT;
     private boolean acceptFragmentedFrames;
@@ -231,8 +234,8 @@ public class RSocketFactory {
       return this;
     }
 
-    public ClientRSocketFactory resumeToken(Supplier<ByteBuf> resumeTokenSupplier) {
-      this.resumeTokenSupplier = Objects.requireNonNull(resumeTokenSupplier);
+    public ClientRSocketFactory resumeToken(ByteBuf resumeToken) {
+      this.resumeToken = Objects.requireNonNull(resumeToken, "resumeToken");
       return this;
     }
 
@@ -264,6 +267,19 @@ public class RSocketFactory {
 
     public ClientRSocketFactory frameSizeLimit(int frameSizeLimit) {
       this.frameSizeLimit = Preconditions.requireFrameSizeValid(frameSizeLimit);
+      return this;
+    }
+
+    /**
+     * Limits metadata-pushes rate. If limit is exceeded, RSocket is terminated
+     *
+     * @param numberOfRequests number of metadata-pushes allowed in given interval
+     * @param limitInterval interval where given number of metadata-pushes is allowed
+     * @return this {@link ClientRSocketFactory} instance
+     */
+    public ClientRSocketFactory metadataPushLimit(int numberOfRequests, Duration limitInterval) {
+      metadataPushLimit = Preconditions.requirePositive(numberOfRequests, "numberOfRequests");
+      metadataPushLimitInterval = Objects.requireNonNull(limitInterval, "limitInterval");
       return this;
     }
 
@@ -339,6 +355,9 @@ public class RSocketFactory {
         this.transportClient = transportClient;
         this.keepAliveTickPeriod = keepAliveTickPeriod();
         this.keepAliveTimeout = keepAliveTimeout();
+        if (resumeEnabled && resumeToken.readableBytes() == 0) {
+          throw new IllegalStateException("Resume is enabled, but resume token is empty");
+        }
       }
 
       @Override
@@ -346,20 +365,14 @@ public class RSocketFactory {
         return newConnection()
             .flatMap(
                 connection -> {
-                  ByteBufAllocator allocator = ClientRSocketFactory.this.allocator;
                   if (acceptFragmentedFrames) {
                     connection =
                         new FragmentationDuplexConnection(connection, allocator, frameSizeLimit);
                   }
-
-                  ClientSetup clientSetup = clientSetup(connection);
-                  boolean isLeaseEnabled = leaseEnabled;
-                  ByteBuf resumeToken = clientSetup.resumeToken();
-
                   ByteBuf setupFrame =
                       SetupFrameFlyweight.encode(
                           allocator,
-                          isLeaseEnabled,
+                          leaseEnabled,
                           keepAliveTickPeriod,
                           keepAliveTimeout,
                           resumeToken,
@@ -371,6 +384,7 @@ public class RSocketFactory {
                       ConnectionSetupPayload.create(setupFrame);
 
                   Scheduler scheduler = connection.scheduler();
+                  ClientSetup clientSetup = clientSetup(connection);
                   KeepAliveHandler keepAliveHandler = clientSetup.keepAliveHandler();
                   DuplexConnection clientConnection = clientSetup.connection();
 
@@ -387,10 +401,6 @@ public class RSocketFactory {
                           scheduler,
                           leaseConfigurer);
 
-                  final int keepAliveTimeout = this.keepAliveTimeout;
-                  final int keepAliveTickPeriod = this.keepAliveTickPeriod;
-
-                  ClientGracefulDispose gracefulDispose = ClientRSocketFactory.this.gracefulDispose;
                   gracefulDisposeConfigurer.configure(gracefulDispose);
 
                   RSocketRequester gracefullyDisposableRequester =
@@ -430,7 +440,10 @@ public class RSocketFactory {
                           wrappedRSocketHandler,
                           payloadDecoder,
                           errorConsumer,
-                          streamErrorMapper);
+                          streamErrorMapper,
+                          rSocketErrorMapper,
+                          metadataPushLimit,
+                          metadataPushLimitInterval);
 
                   gracefullyDisposableRequester.onGracefulDispose(
                       rSocketResponder::gracefulDispose);
@@ -468,7 +481,6 @@ public class RSocketFactory {
 
       private ClientSetup clientSetup(DuplexConnection startConnection) {
         if (resumeEnabled) {
-          ByteBuf resumeToken = resumeTokenSupplier.get();
           return new ResumableClientSetup(
               allocator,
               startConnection,
@@ -518,6 +530,8 @@ public class RSocketFactory {
     private final ServerGracefulDispose gracefulDispose =
         ServerGracefulDispose.create().drainTimeout(Duration.ofSeconds(600));
     private ServerGracefulDispose.Configurer gracefulDisposeConfigurer = gracefulDispose -> {};
+    private int metadataPushLimit = 10;
+    private Duration metadataPushLimitInterval = Duration.ofSeconds(1);
 
     private ServerRSocketFactory() {}
 
@@ -655,6 +669,19 @@ public class RSocketFactory {
     }
 
     /**
+     * Limits metadata-pushes rate. If limit is exceeded, RSocket is terminated
+     *
+     * @param numberOfRequests number of metadata-pushes allowed in given interval
+     * @param limitInterval interval where given number of metadata-pushes is allowed
+     * @return this {@link ServerRSocketFactory} instance
+     */
+    public ServerRSocketFactory metadataPushLimit(int numberOfRequests, Duration limitInterval) {
+      metadataPushLimit = Preconditions.requirePositive(numberOfRequests, "numberOfRequests");
+      metadataPushLimitInterval = Objects.requireNonNull(limitInterval, "limitInterval");
+      return this;
+    }
+
+    /**
      * @param gracefulDisposeConfigurer configures graceful dispose of this server
      * @return this {@link ServerRSocketFactory} instance
      */
@@ -722,13 +749,12 @@ public class RSocketFactory {
                         },
                         frameSizeLimit)
                     .doOnNext(
-                        c -> {
-                          serverGracefulDisposer
-                              .ofServer(c)
-                              .onClose()
-                              .doFinally(v -> serverSetup.dispose())
-                              .subscribe();
-                        });
+                        c ->
+                            serverGracefulDisposer
+                                .ofServer(c)
+                                .onClose()
+                                .doFinally(v -> serverSetup.dispose())
+                                .subscribe());
               }
 
               private Mono<Void> accept(
@@ -842,7 +868,10 @@ public class RSocketFactory {
                                         wrappedRSocketHandler,
                                         payloadDecoder,
                                         errorConsumer,
-                                        streamErrorMapper);
+                                        streamErrorMapper,
+                                        rSocketErrorMapper,
+                                        metadataPushLimit,
+                                        metadataPushLimitInterval);
 
                                 gracefullyDisposableRequester.onGracefulDispose(
                                     rSocketResponder::gracefulDispose);

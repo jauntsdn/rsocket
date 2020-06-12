@@ -1,11 +1,29 @@
+/*
+ * Copyright 2020 - present Maksym Ostroverkhov.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.jauntsdn.rsocket;
 
+import static com.jauntsdn.rsocket.RSocketErrorMappers.*;
 import static com.jauntsdn.rsocket.StreamErrorMappers.*;
 
 import com.jauntsdn.rsocket.frame.FrameType;
 import com.jauntsdn.rsocket.frame.decoder.PayloadDecoder;
 import com.jauntsdn.rsocket.lease.*;
 import io.netty.buffer.ByteBufAllocator;
+import java.time.Duration;
 import java.util.function.Consumer;
 import org.reactivestreams.Publisher;
 import org.slf4j.Logger;
@@ -28,8 +46,20 @@ class LeaseRSocketResponder extends RSocketResponder {
       PayloadDecoder payloadDecoder,
       Consumer<Throwable> errorConsumer,
       StreamErrorMapper streamErrorMapper,
-      ResponderLeaseHandler leaseHandler) {
-    super(allocator, connection, requestHandler, payloadDecoder, errorConsumer, streamErrorMapper);
+      RSocketErrorMapper rSocketErrorMapper,
+      ResponderLeaseHandler leaseHandler,
+      int metadataPushLimit,
+      Duration metadataPushLimitInterval) {
+    super(
+        allocator,
+        connection,
+        requestHandler,
+        payloadDecoder,
+        errorConsumer,
+        streamErrorMapper,
+        rSocketErrorMapper,
+        metadataPushLimit,
+        metadataPushLimitInterval);
     this.leaseHandler = leaseHandler;
     this.leaseDisposable = leaseHandler.send(this::sendFrame);
   }
@@ -132,9 +162,9 @@ class LeaseRSocketResponder extends RSocketResponder {
   }
 
   @Override
-  void terminate() {
+  void terminate(Throwable t) {
     leaseDisposable.dispose();
-    super.terminate();
+    super.terminate(t);
   }
 
   @Override

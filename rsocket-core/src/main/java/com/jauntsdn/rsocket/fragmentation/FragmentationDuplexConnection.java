@@ -17,6 +17,8 @@
 package com.jauntsdn.rsocket.fragmentation;
 
 import com.jauntsdn.rsocket.DuplexConnection;
+import com.jauntsdn.rsocket.frame.ErrorCodes;
+import com.jauntsdn.rsocket.frame.ErrorFrameFlyweight;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import java.util.Objects;
@@ -38,12 +40,16 @@ public final class FragmentationDuplexConnection implements DuplexConnection {
   private static final Logger logger = LoggerFactory.getLogger(FragmentationDuplexConnection.class);
   private final DuplexConnection delegate;
   private final FrameReassembler frameReassembler;
+  private ByteBufAllocator allocator;
+  private int frameSizeLimit;
 
   public FragmentationDuplexConnection(
       DuplexConnection delegate, ByteBufAllocator allocator, int frameSizeLimit) {
     Objects.requireNonNull(delegate, "delegate must not be null");
     Objects.requireNonNull(allocator, "byteBufAllocator must not be null");
+    this.allocator = allocator;
     this.delegate = delegate;
+    this.frameSizeLimit = frameSizeLimit;
     this.frameReassembler = new FrameReassembler(allocator, frameSizeLimit);
 
     delegate.onClose().doFinally(s -> frameReassembler.dispose()).subscribe();
@@ -61,7 +67,23 @@ public final class FragmentationDuplexConnection implements DuplexConnection {
 
   @Override
   public Flux<ByteBuf> receive() {
-    return delegate.receive().handle(frameReassembler::reassembleFrame);
+    return delegate
+        .receive()
+        .handle(
+            (frame, sink) -> {
+              if (!frameReassembler.reassembleFrame(frame, sink)) {
+                String message =
+                    String.format("Fragmented frame total size limit exceeded: %d", frameSizeLimit);
+                sendOne(
+                        ErrorFrameFlyweight.encode(
+                            allocator, 0, ErrorCodes.CONNECTION_ERROR, message))
+                    .subscribe(
+                        unused -> {},
+                        error ->
+                            logger.debug("Exception while sending RSocket error frame", error));
+                dispose();
+              }
+            });
   }
 
   @Override

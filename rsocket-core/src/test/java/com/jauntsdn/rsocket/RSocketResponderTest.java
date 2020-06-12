@@ -28,6 +28,7 @@ import com.jauntsdn.rsocket.util.EmptyPayload;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
+import java.time.Duration;
 import java.util.Collection;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -147,7 +148,10 @@ public class RSocketResponderTest {
           acceptingSocket,
           PayloadDecoder.DEFAULT,
           throwable -> errors.add(throwable),
-          StreamErrorMappers.create().createErrorMapper(ByteBufAllocator.DEFAULT));
+          StreamErrorMappers.create().createErrorMapper(ByteBufAllocator.DEFAULT),
+          RSocketErrorMappers.create().createErrorMapper(ByteBufAllocator.DEFAULT),
+          100,
+          Duration.ofSeconds(1));
     }
 
     private void sendRequest(int streamId, FrameType frameType) {
