@@ -484,6 +484,37 @@ final class FrameReassemblerTest {
     Assert.assertFalse(reassembler.data.containsKey(1));
   }
 
+  @Test
+  void closeOnReceiveFollowsEmptyFragment() {
+    TestDuplexConnection connection = new TestDuplexConnection();
+    int frameSizeLimit = 2048;
+    FragmentationDuplexConnection fragmentationConnection =
+        new FragmentationDuplexConnection(connection, ByteBufAllocator.DEFAULT, frameSizeLimit);
+    List<ByteBuf> received = new ArrayList<>();
+    List<Throwable> errors = new ArrayList<>();
+    fragmentationConnection.receive().subscribe(received::add, errors::add);
+    try {
+      ByteBuf fragment =
+          FrameHeaderFlyweight.encode(
+              ByteBufAllocator.DEFAULT,
+              1,
+              FrameType.REQUEST_RESPONSE,
+              FrameHeaderFlyweight.FLAGS_M | FrameHeaderFlyweight.FLAGS_F);
+      ByteBuf frame =
+          FragmentationFlyweight.encode(
+              ByteBufAllocator.DEFAULT, fragment, Unpooled.EMPTY_BUFFER, Unpooled.EMPTY_BUFFER);
+      connection.addToReceivedBuffer(frame);
+      Assert.assertEquals(0, frame.refCnt());
+      Assert.assertTrue(connection.isDisposed());
+      Assert.assertEquals(1, errors.size());
+      Throwable error = errors.get(0);
+      Assert.assertEquals(
+          "received frame fragment with empty payload, and FOLLOWS flag set", error.getMessage());
+    } finally {
+      received.forEach(ReferenceCountUtil::release);
+    }
+  }
+
   @ParameterizedTest
   @MethodSource("framesProvider")
   void sizeLimit(List<ByteBuf> frames) {

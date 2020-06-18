@@ -178,7 +178,7 @@ final class FrameReassembler implements Disposable {
       }
       putHeader(streamId, header);
     }
-
+    int payloadSize = 0;
     if (FrameHeaderFlyweight.hasMetadata(frame)) {
       CompositeByteBuf compositeMetadata = getMetadata(streamId);
       assembledSize = addFragmentSize(assembledSize, compositeMetadata);
@@ -211,6 +211,7 @@ final class FrameReassembler implements Disposable {
           frame.release();
           throw new IllegalStateException("unsupported fragment type");
       }
+      payloadSize += metadata.readableBytes();
       compositeMetadata.addComponents(true, metadata.retain());
     }
 
@@ -243,7 +244,13 @@ final class FrameReassembler implements Disposable {
         data = PayloadFrameFlyweight.data(frame);
         break;
       default:
+        // unreachable - handled by similar code block for metadata
         throw new IllegalStateException("unsupported fragment type");
+    }
+    if (payloadSize + data.readableBytes() == 0) {
+      frame.release();
+      throw new IllegalArgumentException(
+          "received frame fragment with empty payload, and FOLLOWS flag set");
     }
     compositeData.addComponents(true, data.retain());
     frame.release();

@@ -89,7 +89,7 @@ public class TestDuplexConnection implements DuplexConnection {
 
   @Override
   public Flux<ByteBuf> receive() {
-    return received;
+    return received.doFinally(signalType -> dispose());
   }
 
   @Override
