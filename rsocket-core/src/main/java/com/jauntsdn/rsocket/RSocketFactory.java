@@ -27,6 +27,7 @@ import com.jauntsdn.rsocket.frame.decoder.PayloadDecoder;
 import com.jauntsdn.rsocket.internal.ClientServerInputMultiplexer;
 import com.jauntsdn.rsocket.internal.ClientSetup;
 import com.jauntsdn.rsocket.internal.ServerSetup;
+import com.jauntsdn.rsocket.internal.ValidatingConnection;
 import com.jauntsdn.rsocket.keepalive.KeepAliveHandler;
 import com.jauntsdn.rsocket.resume.*;
 import com.jauntsdn.rsocket.transport.ClientTransport;
@@ -375,6 +376,9 @@ public class RSocketFactory {
         return newConnection()
             .flatMap(
                 connection -> {
+                  if (validate) {
+                    connection = ValidatingConnection.ofClient(connection);
+                  }
                   if (acceptFragmentedFrames) {
                     connection =
                         new FragmentationDuplexConnection(connection, allocator, frameSizeLimit);
@@ -502,7 +506,8 @@ public class RSocketFactory {
               resumeSessionDuration,
               resumeStreamTimeout,
               resumeStrategySupplier,
-              resumeCleanupStoreOnKeepAlive);
+              resumeCleanupStoreOnKeepAlive,
+              validate);
         } else {
           return new DefaultClientSetup(startConnection);
         }
@@ -743,6 +748,9 @@ public class RSocketFactory {
                     .get()
                     .start(
                         duplexConnection -> {
+                          if (validate) {
+                            duplexConnection = ValidatingConnection.ofServer(duplexConnection);
+                          }
                           if (acceptFragmentedFrames) {
                             duplexConnection =
                                 new FragmentationDuplexConnection(

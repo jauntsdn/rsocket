@@ -297,17 +297,6 @@ class RSocketResponder implements ResponderRSocket {
             receiver.onError(streamErrorMapper.streamFrameToError(frame, StreamType.REQUEST));
           }
           break;
-        case SETUP:
-          disposeConnection(new IllegalStateException("SETUP frame received post setup"));
-          break;
-        case PAYLOAD:
-          disposeConnection(
-              new IllegalStateException(
-                  "Unexpected PAYLOAD frame received: expect NEXT, NEXT_COMPLETE, COMPLETE"));
-          break;
-        case LEASE:
-          disposeConnection(new IllegalStateException("Unexpected LEASE frame received"));
-          break;
         default:
           if (logger.isDebugEnabled()) {
             logger.debug("Unexpected frame received: {}", frameType);

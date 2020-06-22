@@ -22,6 +22,7 @@ import com.jauntsdn.rsocket.frame.ErrorFrameFlyweight;
 import com.jauntsdn.rsocket.frame.ResumeFrameFlyweight;
 import com.jauntsdn.rsocket.frame.ResumeOkFrameFlyweight;
 import com.jauntsdn.rsocket.internal.ClientServerInputMultiplexer;
+import com.jauntsdn.rsocket.internal.ValidatingConnection;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import java.time.Duration;
@@ -46,7 +47,8 @@ public class ClientRSocketSession implements RSocketSession<Mono<DuplexConnectio
       Supplier<ResumeStrategy> resumeStrategy,
       ResumableFramesStore resumableFramesStore,
       Duration resumeStreamTimeout,
-      boolean cleanupStoreOnKeepAlive) {
+      boolean cleanupStoreOnKeepAlive,
+      boolean validate) {
     this.allocator = allocator;
     this.resumableConnection =
         new ResumableDuplexConnection(
@@ -84,7 +86,13 @@ public class ClientRSocketSession implements RSocketSession<Mono<DuplexConnectio
                                           .doOnNext(v -> logger.debug("Retrying with: {}", v))))
                   .timeout(resumeSessionDuration);
             })
-        .map(source -> new ClientServerInputMultiplexer(source, true))
+        .map(
+            connection -> {
+              if (validate) {
+                connection = ValidatingConnection.ofResumedClient(connection);
+              }
+              return new ClientServerInputMultiplexer(connection, true);
+            })
         .subscribe(
             multiplexer -> {
               /*reconnect resumable connection*/

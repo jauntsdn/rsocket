@@ -93,6 +93,14 @@ public final class FrameHeaderFlyweight {
     return result;
   }
 
+  public static int frameTypeCode(ByteBuf byteBuf) {
+    byteBuf.markReaderIndex();
+    byteBuf.skipBytes(Integer.BYTES);
+    int typeAndFlags = byteBuf.readShort() & 0xFFFF;
+    byteBuf.resetReaderIndex();
+    return typeAndFlags >> FRAME_TYPE_SHIFT;
+  }
+
   public static FrameType frameType(ByteBuf byteBuf) {
     byteBuf.markReaderIndex();
     byteBuf.skipBytes(Integer.BYTES);

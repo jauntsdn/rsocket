@@ -232,16 +232,14 @@ public enum FrameType {
    * Returns the {@code FrameType} that matches the specified {@code encodedType}.
    *
    * @param encodedType the encoded type
-   * @return the {@code FrameType} that matches the specified {@code encodedType}
+   * @return the {@code FrameType} that matches the specified {@code encodedType}, or null if none
+   *     matches
    */
   public static FrameType fromEncodedType(int encodedType) {
-    FrameType frameType = FRAME_TYPES_BY_ENCODED_TYPE[encodedType];
-
-    if (frameType == null) {
-      throw new IllegalArgumentException(String.format("Frame type %d is unknown", encodedType));
+    if (encodedType >= FRAME_TYPES_BY_ENCODED_TYPE.length) {
+      return null;
     }
-
-    return frameType;
+    return FRAME_TYPES_BY_ENCODED_TYPE[encodedType];
   }
 
   private static int getMaximumEncodedType() {

@@ -67,7 +67,8 @@ public interface ClientSetup {
         Duration resumeSessionDuration,
         Duration resumeStreamTimeout,
         Supplier<ResumeStrategy> resumeStrategySupplier,
-        boolean cleanupStoreOnKeepAlive) {
+        boolean cleanupStoreOnKeepAlive,
+        boolean validate) {
 
       ClientRSocketSession rSocketSession =
           new ClientRSocketSession(
@@ -77,7 +78,8 @@ public interface ClientSetup {
                   resumeStrategySupplier,
                   resumableFramesStore,
                   resumeStreamTimeout,
-                  cleanupStoreOnKeepAlive)
+                  cleanupStoreOnKeepAlive,
+                  validate)
               .continueWith(newConnectionFactory)
               .resumeToken(resumeToken);
       this.duplexConnection = rSocketSession.resumableConnection();
