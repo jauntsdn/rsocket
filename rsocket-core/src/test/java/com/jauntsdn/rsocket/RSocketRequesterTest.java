@@ -240,7 +240,8 @@ public class RSocketRequesterTest {
           100_000,
           100_000,
           new KeepAliveHandler.DefaultKeepAliveHandler(connection),
-          Duration.ofSeconds(300));
+          Duration.ofSeconds(300),
+          false);
     }
 
     public int getStreamIdForRequestType(FrameType expectedFrameType) {

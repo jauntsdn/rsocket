@@ -24,6 +24,8 @@ import com.jauntsdn.rsocket.exceptions.ConnectionCloseException;
 import com.jauntsdn.rsocket.exceptions.ConnectionErrorException;
 import com.jauntsdn.rsocket.frame.*;
 import com.jauntsdn.rsocket.frame.decoder.PayloadDecoder;
+import com.jauntsdn.rsocket.internal.StreamMonoReceiver;
+import com.jauntsdn.rsocket.internal.StreamReceiver;
 import com.jauntsdn.rsocket.internal.SynchronizedIntObjectHashMap;
 import com.jauntsdn.rsocket.internal.UnboundedProcessor;
 import com.jauntsdn.rsocket.keepalive.KeepAlive;
@@ -78,6 +80,7 @@ class RSocketRequester implements RSocket {
   private final Consumer<ByteBuf> keepAliveFramesAcceptor;
   private final Scheduler transportScheduler;
   private final KeepAlive keepAlive;
+  private final Disposable onReceiveOverflow;
 
   private volatile Throwable terminationError;
   private volatile boolean isGracefulDisposedRemote;
@@ -97,7 +100,8 @@ class RSocketRequester implements RSocket {
       int keepAliveTickPeriod,
       int keepAliveAckTimeout,
       KeepAliveHandler keepAliveHandler,
-      Duration gracefulDisposeTimeout) {
+      Duration gracefulDisposeTimeout,
+      boolean validate) {
     this.allocator = allocator;
     this.connection = connection;
     this.payloadDecoder = payloadDecoder;
@@ -109,7 +113,7 @@ class RSocketRequester implements RSocket {
     this.senders = new SynchronizedIntObjectHashMap<>();
     this.receivers = new SynchronizedIntObjectHashMap<>();
     this.transportScheduler = connection.scheduler();
-
+    this.onReceiveOverflow = onReceiveOverflow(validate);
     // DO NOT Change the order here. The Send processor must be subscribed to before receiving
     this.sendProcessor = new UnboundedProcessor<>();
 
@@ -270,8 +274,7 @@ class RSocketRequester implements RSocket {
     }
     final UnboundedProcessor<ByteBuf> sendProcessor = this.sendProcessor;
 
-    final Stream stream = new Stream();
-    final MonoProcessor<Payload> receiver = MonoProcessor.create();
+    final StreamMonoReceiver receiver = StreamMonoReceiver.create();
     return receiver
         .doOnSubscribe(
             new Consumer<Subscription>() {
@@ -299,7 +302,7 @@ class RSocketRequester implements RSocket {
                   return;
                 }
 
-                int streamId = stream.setId(streamIdSupplier.nextStreamId(receivers));
+                int streamId = receiver.streamId(streamIdSupplier.nextStreamId(receivers));
                 receivers.put(streamId, receiver);
 
                 final ByteBuf requestFrame =
@@ -315,7 +318,7 @@ class RSocketRequester implements RSocket {
             })
         .doFinally(
             signalType -> {
-              int streamId = stream.getId();
+              int streamId = receiver.streamId();
               if (signalType == SignalType.CANCEL && !receiver.isTerminated()) {
                 sendProcessor.onNext(CancelFrameFlyweight.encode(allocator, streamId));
               }
@@ -332,8 +335,7 @@ class RSocketRequester implements RSocket {
     }
 
     final UnboundedProcessor<ByteBuf> sendProcessor = this.sendProcessor;
-    final UnicastProcessor<Payload> receiver = UnicastProcessor.create();
-    final Stream stream = new Stream();
+    final StreamReceiver receiver = StreamReceiver.create(onReceiveOverflow);
 
     return receiver
         .doOnRequest(
@@ -363,7 +365,7 @@ class RSocketRequester implements RSocket {
                 if (!isRequestSent) {
                   isRequestSent = true;
 
-                  final int streamId = stream.setId(streamIdSupplier.nextStreamId(receivers));
+                  final int streamId = receiver.streamId(streamIdSupplier.nextStreamId(receivers));
                   receivers.put(streamId, receiver);
 
                   sendProcessor.onNext(
@@ -375,7 +377,7 @@ class RSocketRequester implements RSocket {
                           payload.sliceData().retain()));
                   payload.release();
                 } else {
-                  final int streamId = stream.getId();
+                  final int streamId = receiver.streamId();
                   sendProcessor.onNext(
                       RequestNFrameFlyweight.encode(allocator, streamId, requestN));
                 }
@@ -383,7 +385,7 @@ class RSocketRequester implements RSocket {
             })
         .doFinally(
             signalType -> {
-              final int streamId = stream.getId();
+              final int streamId = receiver.streamId();
               if (streamId < 0) {
                 return;
               }
@@ -402,8 +404,7 @@ class RSocketRequester implements RSocket {
     }
 
     final UnboundedProcessor<ByteBuf> sendProcessor = this.sendProcessor;
-    final UnicastProcessor<Payload> receiver = UnicastProcessor.create();
-    final Stream stream = new Stream();
+    final StreamReceiver receiver = StreamReceiver.create(onReceiveOverflow);
 
     return receiver
         .doOnRequest(
@@ -429,7 +430,7 @@ class RSocketRequester implements RSocket {
                             @Override
                             protected void hookOnSubscribe(Subscription subscription) {
                               this.sender = subscription;
-                              stream.setSender(subscription);
+                              receiver.streamSender(subscription);
                               subscription.request(1);
                             }
 
@@ -453,7 +454,7 @@ class RSocketRequester implements RSocket {
                                 isRequestSent = true;
 
                                 int streamId =
-                                    stream.setId(streamIdSupplier.nextStreamId(receivers));
+                                    receiver.streamId(streamIdSupplier.nextStreamId(receivers));
                                 senders.put(streamId, sender);
                                 receivers.put(streamId, receiver);
 
@@ -467,7 +468,7 @@ class RSocketRequester implements RSocket {
                                             : null,
                                         payload.sliceData().retain());
                               } else {
-                                final int streamId = stream.getId();
+                                final int streamId = receiver.streamId();
                                 frame =
                                     PayloadFrameFlyweight.encodeNext(allocator, streamId, payload);
                               }
@@ -478,7 +479,7 @@ class RSocketRequester implements RSocket {
 
                             @Override
                             protected void hookOnComplete() {
-                              int streamId = stream.getId();
+                              int streamId = receiver.streamId();
                               if (streamId < 0) {
                                 receiver.onComplete();
                               } else if (!receiver.isDisposed()) {
@@ -489,7 +490,7 @@ class RSocketRequester implements RSocket {
 
                             @Override
                             protected void hookOnError(Throwable t) {
-                              int streamId = stream.getId();
+                              int streamId = receiver.streamId();
                               if (streamId > 0) {
                                 sendProcessor.onNext(
                                     streamErrorMapper.streamErrorToFrame(
@@ -500,7 +501,7 @@ class RSocketRequester implements RSocket {
                             }
                           });
                 } else {
-                  final int streamId = stream.getId();
+                  final int streamId = receiver.streamId();
                   sendProcessor.onNext(
                       RequestNFrameFlyweight.encode(allocator, streamId, requestN));
                 }
@@ -508,9 +509,9 @@ class RSocketRequester implements RSocket {
             })
         .doFinally(
             s -> {
-              int streamId = stream.getId();
+              int streamId = receiver.streamId();
               if (streamId < 0) {
-                Subscription sender = stream.getSender();
+                Subscription sender = receiver.streamSender();
                 if (sender != null) {
                   sender.cancel();
                 }
@@ -751,6 +752,12 @@ class RSocketRequester implements RSocket {
     connection.dispose();
   }
 
+  private Disposable onReceiveOverflow(boolean validate) {
+    return validate
+        ? () -> dispose("Requester stream received more frames than demanded with requestN", false)
+        : null;
+  }
+
   RSocketRequester onGracefulDispose(Consumer<String> onGracefulDispose) {
     this.onGracefulDisposeLocal = onGracefulDispose;
     return this;
@@ -772,28 +779,6 @@ class RSocketRequester implements RSocket {
     logger.debug("Remote graceful dispose RSocketRequester with message: {}", msg);
     isGracefulDisposedRemote = true;
     gracefulDisposeRemoteMessage = msg;
-  }
-
-  private static class Stream {
-    private volatile int id = -1;
-    private volatile Subscription sender;
-
-    public int setId(int streamId) {
-      this.id = streamId;
-      return streamId;
-    }
-
-    public int getId() {
-      return id;
-    }
-
-    public Subscription getSender() {
-      return sender;
-    }
-
-    public void setSender(Subscription sender) {
-      this.sender = sender;
-    }
   }
 
   private static class TerminationSignal {

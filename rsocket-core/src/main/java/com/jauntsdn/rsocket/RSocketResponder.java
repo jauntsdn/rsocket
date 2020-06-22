@@ -22,6 +22,7 @@ import static com.jauntsdn.rsocket.StreamErrorMappers.*;
 import com.jauntsdn.rsocket.exceptions.ConnectionErrorException;
 import com.jauntsdn.rsocket.frame.*;
 import com.jauntsdn.rsocket.frame.decoder.PayloadDecoder;
+import com.jauntsdn.rsocket.internal.StreamReceiver;
 import com.jauntsdn.rsocket.internal.SynchronizedIntObjectHashMap;
 import com.jauntsdn.rsocket.internal.UnboundedProcessor;
 import io.netty.buffer.ByteBuf;
@@ -39,6 +40,7 @@ import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import reactor.core.Disposable;
 import reactor.core.Exceptions;
 import reactor.core.publisher.*;
 
@@ -64,6 +66,7 @@ class RSocketResponder implements ResponderRSocket {
   private final IntObjectMap<Processor<Payload, Payload>> receivers;
   private final UnboundedProcessor<ByteBuf> sendProcessor;
   private final ByteBufAllocator allocator;
+  private final Disposable onReceiveOverflow;
 
   private volatile Throwable terminationError;
 
@@ -79,7 +82,8 @@ class RSocketResponder implements ResponderRSocket {
       StreamErrorMapper streamErrorMapper,
       RSocketErrorMapper rSocketErrorMapper,
       int metadataPushesLimit,
-      Duration metadataPushesInterval) {
+      Duration metadataPushesInterval,
+      boolean validate) {
     this.allocator = allocator;
     this.connection = connection;
 
@@ -93,9 +97,9 @@ class RSocketResponder implements ResponderRSocket {
     this.rSocketErrorMapper = rSocketErrorMapper;
     this.metadataPushesLimit = metadataPushesLimit;
     this.metadataPushesInterval = metadataPushesInterval.toNanos();
+    this.onReceiveOverflow = onReceiveOverflow(validate);
     this.senders = new SynchronizedIntObjectHashMap<>();
     this.receivers = new SynchronizedIntObjectHashMap<>();
-
     this.sendProcessor = new UnboundedProcessor<>();
 
     connection.send(sendProcessor).subscribe(null, this::handleSendProcessorError);
@@ -106,6 +110,15 @@ class RSocketResponder implements ResponderRSocket {
         .onClose()
         .doFinally(s -> terminate(CLOSED_CHANNEL_EXCEPTION))
         .subscribe(null, errorConsumer);
+  }
+
+  private Disposable onReceiveOverflow(boolean validate) {
+    return validate
+        ? () ->
+            disposeConnection(
+                new ConnectionErrorException(
+                    "Responder stream received more frames than demanded with requestN"))
+        : null;
   }
 
   @Override
@@ -425,7 +438,7 @@ class RSocketResponder implements ResponderRSocket {
   }
 
   private void handleChannel(int streamId, Payload payload, int initialRequestN) {
-    UnicastProcessor<Payload> frames = UnicastProcessor.create();
+    StreamReceiver frames = StreamReceiver.create(onReceiveOverflow);
     receivers.put(streamId, frames);
 
     Flux<Payload> payloads =
@@ -460,13 +473,14 @@ class RSocketResponder implements ResponderRSocket {
   }
 
   private void disposeConnection(Throwable t) {
-    terminationError = t;
-
-    connection
-        .sendOne(ErrorFrameFlyweight.encode(allocator, 0, t))
-        .doFinally(s -> connection.dispose())
-        .subscribe(null, errorConsumer);
-    errorConsumer.accept(t);
+    if (terminationError == null) {
+      terminationError = t;
+      connection
+          .sendOne(ErrorFrameFlyweight.encode(allocator, 0, t))
+          .doFinally(s -> connection.dispose())
+          .subscribe(null, errorConsumer);
+      errorConsumer.accept(t);
+    }
   }
 
   private void handleRequestN(int streamId, ByteBuf frame) {

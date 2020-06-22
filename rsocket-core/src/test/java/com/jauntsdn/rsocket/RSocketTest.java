@@ -172,7 +172,8 @@ public class RSocketTest {
               StreamErrorMappers.create().createErrorMapper(ByteBufAllocator.DEFAULT),
               RSocketErrorMappers.create().createErrorMapper(ByteBufAllocator.DEFAULT),
               100,
-              Duration.ofSeconds(1));
+              Duration.ofSeconds(1),
+              false);
 
       crs =
           new RSocketRequester(
@@ -186,7 +187,8 @@ public class RSocketTest {
               100_000,
               100_000,
               new KeepAliveHandler.DefaultKeepAliveHandler(clientConnection),
-              Duration.ofSeconds(300));
+              Duration.ofSeconds(300),
+              false);
     }
 
     public void setRequestAcceptor(RSocket requestAcceptor) {

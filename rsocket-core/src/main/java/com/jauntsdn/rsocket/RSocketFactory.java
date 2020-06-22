@@ -129,6 +129,7 @@ public class RSocketFactory {
     private final ClientGracefulDispose gracefulDispose =
         ClientGracefulDispose.create().drainTimeout(Duration.ofSeconds(600));
     private ClientGracefulDispose.Configurer gracefulDisposeConfigurer = gracefulDispose -> {};
+    private boolean validate = true;
 
     public ClientRSocketFactory byteBufAllocator(ByteBufAllocator allocator) {
       Objects.requireNonNull(allocator);
@@ -332,6 +333,15 @@ public class RSocketFactory {
     }
 
     /**
+     * @param trustedPeer if false, some checks are enabled for protection against potential DoS
+     * @return this {@link ClientRSocketFactory} instance
+     */
+    public ClientRSocketFactory trustedPeer(boolean trustedPeer) {
+      this.validate = !trustedPeer;
+      return this;
+    }
+
+    /**
      * @param gracefulDisposeConfigurer configures graceful dispose of RSocket requester
      * @return this {@link ClientRSocketFactory} instance
      */
@@ -415,7 +425,8 @@ public class RSocketFactory {
                           keepAliveTickPeriod,
                           keepAliveTimeout,
                           keepAliveHandler,
-                          gracefulDispose.drainTimeout());
+                          gracefulDispose.drainTimeout(),
+                          validate);
 
                   RSocket rSocketRequester = gracefullyDisposableRequester;
 
@@ -443,7 +454,8 @@ public class RSocketFactory {
                           streamErrorMapper,
                           rSocketErrorMapper,
                           metadataPushLimit,
-                          metadataPushLimitInterval);
+                          metadataPushLimitInterval,
+                          validate);
 
                   gracefullyDisposableRequester.onGracefulDispose(
                       rSocketResponder::gracefulDispose);
@@ -532,6 +544,7 @@ public class RSocketFactory {
     private ServerGracefulDispose.Configurer gracefulDisposeConfigurer = gracefulDispose -> {};
     private int metadataPushLimit = 10;
     private Duration metadataPushLimitInterval = Duration.ofSeconds(1);
+    private boolean validate = true;
 
     private ServerRSocketFactory() {}
 
@@ -665,6 +678,15 @@ public class RSocketFactory {
 
     public ServerRSocketFactory frameSizeLimit(int frameSizeLimit) {
       this.frameSizeLimit = Preconditions.requireFrameSizeValid(frameSizeLimit);
+      return this;
+    }
+
+    /**
+     * @param trustedPeer if false, some checks are enabled for protection against potential DoS
+     * @return this {@link ServerRSocketFactory} instance
+     */
+    public ServerRSocketFactory trustedPeer(boolean trustedPeer) {
+      this.validate = !trustedPeer;
       return this;
     }
 
@@ -837,7 +859,8 @@ public class RSocketFactory {
                               0,
                               setupPayload.keepAliveMaxLifetime(),
                               keepAliveHandler,
-                              gracefulDispose.drainTimeout());
+                              gracefulDispose.drainTimeout(),
+                              validate);
 
                       RSocket rSocketRequester = gracefullyDisposableRequester;
                       if (multiSubscriberRequester) {
@@ -871,7 +894,8 @@ public class RSocketFactory {
                                         streamErrorMapper,
                                         rSocketErrorMapper,
                                         metadataPushLimit,
-                                        metadataPushLimitInterval);
+                                        metadataPushLimitInterval,
+                                        validate);
 
                                 gracefullyDisposableRequester.onGracefulDispose(
                                     rSocketResponder::gracefulDispose);

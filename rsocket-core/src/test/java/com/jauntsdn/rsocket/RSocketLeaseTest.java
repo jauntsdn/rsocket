@@ -95,6 +95,7 @@ class RSocketLeaseTest {
             100_000,
             new KeepAliveHandler.DefaultKeepAliveHandler(connection),
             Duration.ofSeconds(300),
+            false,
             requesterLeaseHandler,
             rtt -> {});
 
@@ -116,7 +117,8 @@ class RSocketLeaseTest {
             RSocketErrorMappers.create().createErrorMapper(ByteBufAllocator.DEFAULT),
             responderLeaseHandler,
             100,
-            Duration.ofSeconds(1));
+            Duration.ofSeconds(1),
+            false);
   }
 
   @Test
