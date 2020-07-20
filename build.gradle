@@ -22,7 +22,6 @@ plugins {
     id 'io.morethan.jmhreport' apply false
     id 'com.google.osdetector' apply false
     id 'com.palantir.git-version'
-    id 'com.gradle.build-scan'
 }
 
 description = 'RSocket: Stream Oriented Messaging Passing with Reactive Stream Semantics.'
@@ -119,11 +118,6 @@ subprojects {
     googleJavaFormat {
         toolVersion = '1.6'
     }
-}
-
-buildScan {
-    termsOfServiceUrl = 'https://gradle.com/terms-of-service'
-    termsOfServiceAgree = 'yes'
 }
 
 task printProjectVersion {

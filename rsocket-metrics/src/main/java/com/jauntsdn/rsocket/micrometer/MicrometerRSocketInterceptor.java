@@ -26,8 +26,8 @@ import com.jauntsdn.rsocket.interceptors.RSocketInterceptor;
 @FunctionalInterface
 public interface MicrometerRSocketInterceptor extends RSocketInterceptor {
   /**
-   * RSocket started requests count. Tagged with {@link #TAG_INTERACTION_TYPE and
-   * {@link #TAG_RSOCKET_ROLE}
+   * RSocket started requests count. Tagged with {@link #TAG_INTERACTION_TYPE} and {@link
+   * #TAG_RSOCKET_ROLE}
    */
   String COUNTER_RSOCKET_REQUEST_STARTED = "rsocket.request.started";
 

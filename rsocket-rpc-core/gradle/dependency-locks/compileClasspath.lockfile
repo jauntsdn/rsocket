@@ -2,11 +2,11 @@
 # Manual edits can break the build and are not advised.
 # This file is expected to be part of source control.
 com.google.code.findbugs:jsr305:3.0.2
-io.micrometer:micrometer-core:1.4.1
-io.netty:netty-buffer:4.1.50.Final
-io.netty:netty-common:4.1.50.Final
+io.micrometer:micrometer-core:1.5.2
+io.netty:netty-buffer:4.1.51.Final
+io.netty:netty-common:4.1.51.Final
 io.opentracing:opentracing-api:0.32.0
-io.projectreactor:reactor-core:3.3.5.RELEASE
+io.projectreactor:reactor-core:3.3.7.RELEASE
 javax.annotation:javax.annotation-api:1.2
 javax.inject:javax.inject:1
 org.hdrhistogram:HdrHistogram:2.1.12

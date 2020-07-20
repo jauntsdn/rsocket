@@ -40,6 +40,7 @@ public class ClientRSocketSession implements RSocketSession<Mono<DuplexConnectio
   private volatile ByteBuf resumeToken;
   private final ByteBufAllocator allocator;
 
+  @SuppressWarnings("deprecation")
   public ClientRSocketSession(
       DuplexConnection duplexConnection,
       ByteBufAllocator allocator,
