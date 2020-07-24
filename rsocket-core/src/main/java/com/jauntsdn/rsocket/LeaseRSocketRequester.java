@@ -44,6 +44,7 @@ class LeaseRSocketRequester extends RSocketRequester {
       int keepAliveAckTimeout,
       KeepAliveHandler keepAliveHandler,
       Duration gracefulDisposeTimeout,
+      boolean validate,
       RequesterLeaseHandler leaseHandler,
       @Nullable LongConsumer onRtt) {
     super(
@@ -57,7 +58,8 @@ class LeaseRSocketRequester extends RSocketRequester {
         keepAliveTickPeriod,
         keepAliveAckTimeout,
         keepAliveHandler,
-        gracefulDisposeTimeout);
+        gracefulDisposeTimeout,
+        validate);
     this.leaseHandler = leaseHandler;
     keepAlive().onRtt(onRtt);
   }

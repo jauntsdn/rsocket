@@ -49,7 +49,8 @@ class LeaseRSocketResponder extends RSocketResponder {
       RSocketErrorMapper rSocketErrorMapper,
       ResponderLeaseHandler leaseHandler,
       int metadataPushLimit,
-      Duration metadataPushLimitInterval) {
+      Duration metadataPushLimitInterval,
+      boolean validate) {
     super(
         allocator,
         connection,
@@ -59,7 +60,8 @@ class LeaseRSocketResponder extends RSocketResponder {
         streamErrorMapper,
         rSocketErrorMapper,
         metadataPushLimit,
-        metadataPushLimitInterval);
+        metadataPushLimitInterval,
+        validate);
     this.leaseHandler = leaseHandler;
     this.leaseDisposable = leaseHandler.send(this::sendFrame);
   }

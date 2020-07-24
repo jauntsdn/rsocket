@@ -151,7 +151,8 @@ public class RSocketResponderTest {
           StreamErrorMappers.create().createErrorMapper(ByteBufAllocator.DEFAULT),
           RSocketErrorMappers.create().createErrorMapper(ByteBufAllocator.DEFAULT),
           100,
-          Duration.ofSeconds(1));
+          Duration.ofSeconds(1),
+          false);
     }
 
     private void sendRequest(int streamId, FrameType frameType) {

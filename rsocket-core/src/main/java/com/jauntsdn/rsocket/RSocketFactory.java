@@ -27,6 +27,7 @@ import com.jauntsdn.rsocket.frame.decoder.PayloadDecoder;
 import com.jauntsdn.rsocket.internal.ClientServerInputMultiplexer;
 import com.jauntsdn.rsocket.internal.ClientSetup;
 import com.jauntsdn.rsocket.internal.ServerSetup;
+import com.jauntsdn.rsocket.internal.ValidatingConnection;
 import com.jauntsdn.rsocket.keepalive.KeepAliveHandler;
 import com.jauntsdn.rsocket.resume.*;
 import com.jauntsdn.rsocket.transport.ClientTransport;
@@ -129,6 +130,7 @@ public class RSocketFactory {
     private final ClientGracefulDispose gracefulDispose =
         ClientGracefulDispose.create().drainTimeout(Duration.ofSeconds(600));
     private ClientGracefulDispose.Configurer gracefulDisposeConfigurer = gracefulDispose -> {};
+    private boolean validate = true;
 
     public ClientRSocketFactory byteBufAllocator(ByteBufAllocator allocator) {
       Objects.requireNonNull(allocator);
@@ -332,6 +334,15 @@ public class RSocketFactory {
     }
 
     /**
+     * @param trustedPeer if false, some checks are enabled for protection against potential DoS
+     * @return this {@link ClientRSocketFactory} instance
+     */
+    public ClientRSocketFactory trustedPeer(boolean trustedPeer) {
+      this.validate = !trustedPeer;
+      return this;
+    }
+
+    /**
      * @param gracefulDisposeConfigurer configures graceful dispose of RSocket requester
      * @return this {@link ClientRSocketFactory} instance
      */
@@ -365,6 +376,9 @@ public class RSocketFactory {
         return newConnection()
             .flatMap(
                 connection -> {
+                  if (validate) {
+                    connection = ValidatingConnection.ofClient(connection);
+                  }
                   if (acceptFragmentedFrames) {
                     connection =
                         new FragmentationDuplexConnection(connection, allocator, frameSizeLimit);
@@ -415,7 +429,8 @@ public class RSocketFactory {
                           keepAliveTickPeriod,
                           keepAliveTimeout,
                           keepAliveHandler,
-                          gracefulDispose.drainTimeout());
+                          gracefulDispose.drainTimeout(),
+                          validate);
 
                   RSocket rSocketRequester = gracefullyDisposableRequester;
 
@@ -443,7 +458,8 @@ public class RSocketFactory {
                           streamErrorMapper,
                           rSocketErrorMapper,
                           metadataPushLimit,
-                          metadataPushLimitInterval);
+                          metadataPushLimitInterval,
+                          validate);
 
                   gracefullyDisposableRequester.onGracefulDispose(
                       rSocketResponder::gracefulDispose);
@@ -490,7 +506,8 @@ public class RSocketFactory {
               resumeSessionDuration,
               resumeStreamTimeout,
               resumeStrategySupplier,
-              resumeCleanupStoreOnKeepAlive);
+              resumeCleanupStoreOnKeepAlive,
+              validate);
         } else {
           return new DefaultClientSetup(startConnection);
         }
@@ -532,6 +549,7 @@ public class RSocketFactory {
     private ServerGracefulDispose.Configurer gracefulDisposeConfigurer = gracefulDispose -> {};
     private int metadataPushLimit = 10;
     private Duration metadataPushLimitInterval = Duration.ofSeconds(1);
+    private boolean validate = true;
 
     private ServerRSocketFactory() {}
 
@@ -669,6 +687,15 @@ public class RSocketFactory {
     }
 
     /**
+     * @param trustedPeer if false, some checks are enabled for protection against potential DoS
+     * @return this {@link ServerRSocketFactory} instance
+     */
+    public ServerRSocketFactory trustedPeer(boolean trustedPeer) {
+      this.validate = !trustedPeer;
+      return this;
+    }
+
+    /**
      * Limits metadata-pushes rate. If limit is exceeded, RSocket is terminated
      *
      * @param numberOfRequests number of metadata-pushes allowed in given interval
@@ -721,6 +748,9 @@ public class RSocketFactory {
                     .get()
                     .start(
                         duplexConnection -> {
+                          if (validate) {
+                            duplexConnection = ValidatingConnection.ofServer(duplexConnection);
+                          }
                           if (acceptFragmentedFrames) {
                             duplexConnection =
                                 new FragmentationDuplexConnection(
@@ -837,7 +867,8 @@ public class RSocketFactory {
                               0,
                               setupPayload.keepAliveMaxLifetime(),
                               keepAliveHandler,
-                              gracefulDispose.drainTimeout());
+                              gracefulDispose.drainTimeout(),
+                              validate);
 
                       RSocket rSocketRequester = gracefullyDisposableRequester;
                       if (multiSubscriberRequester) {
@@ -871,7 +902,8 @@ public class RSocketFactory {
                                         streamErrorMapper,
                                         rSocketErrorMapper,
                                         metadataPushLimit,
-                                        metadataPushLimitInterval);
+                                        metadataPushLimitInterval,
+                                        validate);
 
                                 gracefullyDisposableRequester.onGracefulDispose(
                                     rSocketResponder::gracefulDispose);

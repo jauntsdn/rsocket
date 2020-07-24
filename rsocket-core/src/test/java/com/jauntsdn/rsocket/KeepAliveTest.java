@@ -65,7 +65,8 @@ public class KeepAliveTest {
             tickPeriod,
             timeout,
             new DefaultKeepAliveHandler(connection),
-            Duration.ofSeconds(300));
+            Duration.ofSeconds(300),
+            false);
     return new RSocketState(rSocket, errors, connection);
   }
 
@@ -92,7 +93,8 @@ public class KeepAliveTest {
             tickPeriod,
             timeout,
             new ResumableKeepAliveHandler(resumableConnection),
-            Duration.ofSeconds(300));
+            Duration.ofSeconds(300),
+            false);
     return new ResumableRSocketState(rSocket, errors, connection, resumableConnection);
   }
 

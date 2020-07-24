@@ -43,7 +43,8 @@ interface RSocketsFactory {
       StreamErrorMapper streamErrorMapper,
       RSocketErrorMapper rSocketErrorMapper,
       int metadataPushLimit,
-      Duration metadataPushLimitInterval);
+      Duration metadataPushLimitInterval,
+      boolean validate);
 
   RSocketRequester createRequester(
       ByteBufAllocator allocator,
@@ -56,7 +57,8 @@ interface RSocketsFactory {
       int keepAliveTickPeriod,
       int keepAliveAckTimeout,
       KeepAliveHandler keepAliveHandler,
-      Duration gracefulShutdownTimeout);
+      Duration gracefulShutdownTimeout,
+      boolean validate);
 
   static RSocketsFactory createClient(
       boolean isLease, Scheduler scheduler, Leases.ClientConfigurer leaseConfigurer) {
@@ -100,7 +102,8 @@ interface RSocketsFactory {
         StreamErrorMapper streamErrorMapper,
         RSocketErrorMapper rSocketErrorMapper,
         int metadataPushLimit,
-        Duration metadataPushLimitInterval) {
+        Duration metadataPushLimitInterval,
+        boolean validate) {
 
       ResponderLeaseHandler leaseHandler =
           new ResponderLeaseHandler.Impl<>(
@@ -116,7 +119,8 @@ interface RSocketsFactory {
           rSocketErrorMapper,
           leaseHandler,
           metadataPushLimit,
-          metadataPushLimitInterval);
+          metadataPushLimitInterval,
+          validate);
     }
 
     @Override
@@ -131,7 +135,8 @@ interface RSocketsFactory {
         int keepAliveTickPeriod,
         int keepAliveAckTimeout,
         KeepAliveHandler keepAliveHandler,
-        Duration gracefulShutdownTimeout) {
+        Duration gracefulShutdownTimeout,
+        boolean validate) {
       RequesterLeaseHandler.Impl leaseHandler = new RequesterLeaseHandler.Impl();
 
       return new LeaseRSocketRequester(
@@ -146,6 +151,7 @@ interface RSocketsFactory {
           keepAliveAckTimeout,
           keepAliveHandler,
           gracefulShutdownTimeout,
+          validate,
           leaseHandler,
           rttConsumer);
     }
@@ -163,7 +169,8 @@ interface RSocketsFactory {
         StreamErrorMapper streamErrorMapper,
         RSocketErrorMapper rSocketErrorMapper,
         int metadataPushLimit,
-        Duration metadataPushLimitInterval) {
+        Duration metadataPushLimitInterval,
+        boolean validate) {
 
       return new RSocketResponder(
           allocator,
@@ -174,7 +181,8 @@ interface RSocketsFactory {
           streamErrorMapper,
           rSocketErrorMapper,
           metadataPushLimit,
-          metadataPushLimitInterval);
+          metadataPushLimitInterval,
+          validate);
     }
 
     @Override
@@ -189,7 +197,8 @@ interface RSocketsFactory {
         int keepAliveTickPeriod,
         int keepAliveAckTimeout,
         KeepAliveHandler keepAliveHandler,
-        Duration gracefulShutdownTimeout) {
+        Duration gracefulShutdownTimeout,
+        boolean validate) {
       return new RSocketRequester(
           allocator,
           connection,
@@ -201,7 +210,8 @@ interface RSocketsFactory {
           keepAliveTickPeriod,
           keepAliveAckTimeout,
           keepAliveHandler,
-          gracefulShutdownTimeout);
+          gracefulShutdownTimeout,
+          validate);
     }
   }
 }

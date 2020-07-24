@@ -84,7 +84,7 @@ public final class WebsocketRouteTransport extends BaseWebsocketServerTransport<
   /**
    * Creates a new Websocket handler
    *
-   * @param acceptor the {@link ServerTransport.ConnectionAcceptor} to use with the handler
+   * @param acceptor the ServerTransport.ConnectionAcceptor to use with the handler
    * @return a new Websocket handler
    * @throws NullPointerException if {@code acceptor} is {@code null}
    */

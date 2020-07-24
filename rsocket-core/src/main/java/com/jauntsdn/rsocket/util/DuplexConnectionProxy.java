@@ -36,6 +36,11 @@ public class DuplexConnectionProxy implements DuplexConnection {
   }
 
   @Override
+  public Mono<Void> sendOne(ByteBuf frame) {
+    return connection.sendOne(frame);
+  }
+
+  @Override
   public Flux<ByteBuf> receive() {
     return connection.receive();
   }
